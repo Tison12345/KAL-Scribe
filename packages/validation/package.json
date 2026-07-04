@@ -1,0 +1,17 @@
+{
+  "name": "@kal-scribe/validation",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Zod schemas for every request/response boundary, one file per bounded concept (see architecture.md §16, §20).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
