@@ -7,9 +7,11 @@ import {
 } from "@/features/clinical-ai/providers/ClinicalSessionProvider";
 import { ConsentConfirmation } from "@/features/clinical-ai/components/ConsentConfirmation";
 import { RecordButton } from "@/features/clinical-ai/components/RecordButton";
+import { ReviewDraftPanel } from "@/features/clinical-ai/components/ReviewDraftPanel";
 import { TranscriptViewer } from "@/features/clinical-ai/components/TranscriptViewer";
 import { UploadProgress } from "@/features/clinical-ai/components/UploadProgress";
 import { useAudioRecorder } from "@/features/clinical-ai/hooks/useAudioRecorder";
+import { useReviewDraft } from "@/features/clinical-ai/hooks/useReviewDraft";
 import { useTranscript } from "@/features/clinical-ai/hooks/useTranscript";
 import { useUploadSession } from "@/features/clinical-ai/hooks/useUploadSession";
 
@@ -27,6 +29,7 @@ function RecordingSession() {
   const recorder = useAudioRecorder();
   const uploadSession = useUploadSession(recorder.chunks);
   const transcript = useTranscript(uploadSession.recordingId);
+  const reviewDraft = useReviewDraft(uploadSession.recordingId);
 
   const handleStart = () => {
     void uploadSession.begin({
@@ -80,12 +83,24 @@ function RecordingSession() {
         onRetryChunk={uploadSession.retryChunk}
       />
       {uploadSession.status === "completed" && (
-        <TranscriptViewer
-          transcript={transcript.transcript}
-          isPolling={transcript.isPolling}
-          error={transcript.error}
-          onSwapSpeakers={() => void transcript.swapSpeakers()}
-        />
+        <>
+          <TranscriptViewer
+            transcript={transcript.transcript}
+            isPolling={transcript.isPolling}
+            error={transcript.error}
+            onSwapSpeakers={() => void transcript.swapSpeakers()}
+          />
+          <ReviewDraftPanel
+            result={reviewDraft.result}
+            draft={reviewDraft.draft}
+            isPolling={reviewDraft.isPolling}
+            isSaving={reviewDraft.isSaving}
+            error={reviewDraft.error}
+            onChange={reviewDraft.updateDraft}
+            onAccept={() => void reviewDraft.accept()}
+            onDiscard={() => void reviewDraft.discard()}
+          />
+        </>
       )}
     </div>
   );
@@ -101,7 +116,7 @@ export default function Home() {
     <main className="min-h-screen px-12 pb-16 pt-16">
       <div className="mx-auto max-w-5xl">
         <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
-          Clinical AI · Milestone 6 dev preview
+          Clinical AI · Milestone 8 dev preview
         </p>
         <div className="mb-12">
           <h2 className="mb-4 text-5xl font-extrabold tracking-tight text-[var(--color-on-background)]">

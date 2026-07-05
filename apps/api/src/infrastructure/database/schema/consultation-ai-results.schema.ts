@@ -1,4 +1,11 @@
-import { jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { consultationRecordings } from './consultation-recordings.schema';
 import { consultationTranscripts } from './consultation-transcripts.schema';
 
@@ -35,4 +42,5 @@ export const consultationAiResults = pgTable('consultation_ai_results', {
 });
 
 export type ConsultationAiResultRow = typeof consultationAiResults.$inferSelect;
-export type NewConsultationAiResultRow = typeof consultationAiResults.$inferInsert;
+export type NewConsultationAiResultRow =
+  typeof consultationAiResults.$inferInsert;

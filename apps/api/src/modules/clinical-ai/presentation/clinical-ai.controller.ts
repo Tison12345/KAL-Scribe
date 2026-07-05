@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import type {
+  AcceptReviewDraftRequest,
   CompleteUploadRequest,
   CompleteUploadResponse,
   ConsultationAiResult,
@@ -14,19 +15,24 @@ import type {
   RequestChunkUploadResponse,
   StartRecordingRequest,
   StartRecordingResponse,
+  UpdateReviewDraftRequest,
 } from '@kal-scribe/types';
 import {
+  acceptReviewDraftSchema,
   completeUploadSchema,
   createExtractionResultSchema,
   createTranscriptSchema,
   enqueueExtractionJobSchema,
   requestChunkUploadSchema,
   startRecordingSchema,
+  updateReviewDraftSchema,
 } from '@kal-scribe/validation';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe';
+import { AcceptReviewDraftUseCase } from '../application/accept-review-draft.use-case';
 import { CompleteUploadUseCase } from '../application/complete-upload.use-case';
 import { CreateExtractionResultUseCase } from '../application/create-extraction-result.use-case';
 import { CreateTranscriptUseCase } from '../application/create-transcript.use-case';
+import { DiscardReviewDraftUseCase } from '../application/discard-review-draft.use-case';
 import { EnqueueExtractionJobUseCase } from '../application/enqueue-extraction-job.use-case';
 import { GetExtractionResultUseCase } from '../application/get-extraction-result.use-case';
 import { GetTranscriptUseCase } from '../application/get-transcript.use-case';
@@ -34,6 +40,7 @@ import { RelabelTranscriptSpeakersUseCase } from '../application/relabel-transcr
 import { RequestChunkReadUseCase } from '../application/request-chunk-read.use-case';
 import { RequestChunkUploadUseCase } from '../application/request-chunk-upload.use-case';
 import { StartRecordingUseCase } from '../application/start-recording.use-case';
+import { UpdateReviewDraftUseCase } from '../application/update-review-draft.use-case';
 
 /** Doctor-facing REST endpoints — thin, no business logic, one
  * use-case call each (architecture.md §5, §20 principle 1). */
@@ -50,6 +57,9 @@ export class ClinicalAiController {
     private readonly enqueueExtractionJob: EnqueueExtractionJobUseCase,
     private readonly createExtractionResult: CreateExtractionResultUseCase,
     private readonly getExtractionResult: GetExtractionResultUseCase,
+    private readonly updateReviewDraft: UpdateReviewDraftUseCase,
+    private readonly acceptReviewDraft: AcceptReviewDraftUseCase,
+    private readonly discardReviewDraft: DiscardReviewDraftUseCase,
   ) {}
 
   @Post()
@@ -132,5 +142,30 @@ export class ClinicalAiController {
     @Param('id') id: string,
   ): Promise<ConsultationAiResult> {
     return this.getExtractionResult.execute(id);
+  }
+
+  @Patch(':id/extraction')
+  async updateRecordingExtraction(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateReviewDraftSchema))
+    body: UpdateReviewDraftRequest,
+  ): Promise<ConsultationAiResult> {
+    return this.updateReviewDraft.execute(id, body);
+  }
+
+  @Post(':id/extraction/accept')
+  async acceptRecordingExtraction(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(acceptReviewDraftSchema))
+    body: AcceptReviewDraftRequest,
+  ): Promise<ConsultationAiResult> {
+    return this.acceptReviewDraft.execute(id, body);
+  }
+
+  @Post(':id/extraction/discard')
+  async discardRecordingExtraction(
+    @Param('id') id: string,
+  ): Promise<ConsultationAiResult> {
+    return this.discardReviewDraft.execute(id);
   }
 }

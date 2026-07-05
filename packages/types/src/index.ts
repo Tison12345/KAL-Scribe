@@ -75,4 +75,6 @@ export type {
   CreateExtractionResultRequest,
   CreateExtractionResultResponse,
   EnqueueExtractionJobRequest,
+  UpdateReviewDraftRequest,
+  AcceptReviewDraftRequest,
 } from "./consultation-ai-result.js";

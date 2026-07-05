@@ -36,3 +36,15 @@ export interface CreateExtractionResultResponse {
 export interface EnqueueExtractionJobRequest {
   transcriptId: string;
 }
+
+export interface UpdateReviewDraftRequest {
+  extraction: ClinicalExtraction;
+}
+
+export interface AcceptReviewDraftRequest {
+  /** Opaque CMS doctor reference (architecture.md §12's
+   * `reviewed_by_ref`) — no real auth exists in this standalone repo
+   * yet (architecture.md §17 Phase 1), so this is caller-supplied
+   * rather than derived from a session. */
+  reviewedByRef: string;
+}

@@ -3,8 +3,11 @@ import type { ConsultationAiResult } from '@kal-scribe/types';
 import { ConsultationAiResultRepository } from '../infrastructure/consultation-ai-result.repository';
 import { toConsultationAiResult } from './consultation-ai-result.mapper';
 
+/** Doctor rejects the AI draft entirely (architecture.md §7 step 12) —
+ * no CMS call, unlike accept. Idempotent: discarding an
+ * already-discarded draft is a no-op, not an error. */
 @Injectable()
-export class GetExtractionResultUseCase {
+export class DiscardReviewDraftUseCase {
   constructor(private readonly repository: ConsultationAiResultRepository) {}
 
   async execute(recordingId: string): Promise<ConsultationAiResult> {
@@ -14,6 +17,13 @@ export class GetExtractionResultUseCase {
         `No extraction result for recording "${recordingId}".`,
       );
     }
-    return toConsultationAiResult(row);
+    if (row.status === 'discarded') {
+      return toConsultationAiResult(row);
+    }
+
+    const updated = await this.repository.update(row.id, {
+      status: 'discarded',
+    });
+    return toConsultationAiResult(updated);
   }
 }

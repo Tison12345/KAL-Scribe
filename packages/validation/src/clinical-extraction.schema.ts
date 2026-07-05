@@ -155,3 +155,11 @@ export const createExtractionResultSchema = z.object({
 export const enqueueExtractionJobSchema = z.object({
   transcriptId: z.string().min(1),
 });
+
+export const updateReviewDraftSchema = z.object({
+  extraction: clinicalExtractionSchema,
+});
+
+export const acceptReviewDraftSchema = z.object({
+  reviewedByRef: z.string().min(1),
+});

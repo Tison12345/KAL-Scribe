@@ -1,11 +1,14 @@
 import type {
+  AcceptReviewDraftRequest,
   CompleteUploadRequest,
   CompleteUploadResponse,
+  ConsultationAiResult,
   ConsultationTranscript,
   RequestChunkUploadRequest,
   RequestChunkUploadResponse,
   StartRecordingRequest,
   StartRecordingResponse,
+  UpdateReviewDraftRequest,
 } from "@kal-scribe/types";
 import { getApiBaseUrl } from "@/lib/env";
 
@@ -17,6 +20,21 @@ async function postJson<TResponse>(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    throw new Error(`${path} failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json() as Promise<TResponse>;
+}
+
+async function patchJson<TResponse>(
+  path: string,
+  body: unknown,
+): Promise<TResponse> {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     throw new Error(`${path} failed: ${res.status} ${await res.text()}`);
@@ -64,6 +82,42 @@ export function relabelTranscriptSpeakers(
   recordingId: string,
 ): Promise<ConsultationTranscript> {
   return postJson(`/clinical-ai/recordings/${recordingId}/transcript/relabel`);
+}
+
+/** Returns null (not a rejected promise) when the extraction doesn't
+ * exist yet — normal while the extraction job is still processing in
+ * the background. */
+export async function getExtraction(
+  recordingId: string,
+): Promise<ConsultationAiResult | null> {
+  const res = await fetch(
+    `${getApiBaseUrl()}/clinical-ai/recordings/${recordingId}/extraction`,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Failed to get extraction: ${res.status} ${await res.text()}`);
+  }
+  return res.json() as Promise<ConsultationAiResult>;
+}
+
+export function updateReviewDraft(
+  recordingId: string,
+  request: UpdateReviewDraftRequest,
+): Promise<ConsultationAiResult> {
+  return patchJson(`/clinical-ai/recordings/${recordingId}/extraction`, request);
+}
+
+export function acceptReviewDraft(
+  recordingId: string,
+  request: AcceptReviewDraftRequest,
+): Promise<ConsultationAiResult> {
+  return postJson(`/clinical-ai/recordings/${recordingId}/extraction/accept`, request);
+}
+
+export function discardReviewDraft(
+  recordingId: string,
+): Promise<ConsultationAiResult> {
+  return postJson(`/clinical-ai/recordings/${recordingId}/extraction/discard`);
 }
 
 /** PUTs raw chunk bytes to the signed upload URL — a direct

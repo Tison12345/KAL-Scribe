@@ -33,4 +33,16 @@ export class ConsultationAiResultRepository {
       .where(eq(consultationAiResults.recordingId, recordingId));
     return row;
   }
+
+  async update(
+    id: string,
+    data: Partial<NewConsultationAiResultRow>,
+  ): Promise<ConsultationAiResultRow> {
+    const [row] = await this.db
+      .update(consultationAiResults)
+      .set(data)
+      .where(eq(consultationAiResults.id, id))
+      .returning();
+    return row;
+  }
 }

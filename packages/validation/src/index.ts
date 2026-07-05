@@ -10,4 +10,6 @@ export {
   clinicalExtractionSchema,
   createExtractionResultSchema,
   enqueueExtractionJobSchema,
+  updateReviewDraftSchema,
+  acceptReviewDraftSchema,
 } from "./clinical-extraction.schema.js";
