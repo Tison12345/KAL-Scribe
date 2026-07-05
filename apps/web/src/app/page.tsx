@@ -7,8 +7,10 @@ import {
 } from "@/features/clinical-ai/providers/ClinicalSessionProvider";
 import { ConsentConfirmation } from "@/features/clinical-ai/components/ConsentConfirmation";
 import { RecordButton } from "@/features/clinical-ai/components/RecordButton";
+import { TranscriptViewer } from "@/features/clinical-ai/components/TranscriptViewer";
 import { UploadProgress } from "@/features/clinical-ai/components/UploadProgress";
 import { useAudioRecorder } from "@/features/clinical-ai/hooks/useAudioRecorder";
+import { useTranscript } from "@/features/clinical-ai/hooks/useTranscript";
 import { useUploadSession } from "@/features/clinical-ai/hooks/useUploadSession";
 
 // No auth/identity exists yet in this standalone repo (architecture.md
@@ -24,6 +26,7 @@ function RecordingSession() {
   const { sessionRef, consentConfirmed } = useClinicalSession();
   const recorder = useAudioRecorder();
   const uploadSession = useUploadSession(recorder.chunks);
+  const transcript = useTranscript(uploadSession.recordingId);
 
   const handleStart = () => {
     void uploadSession.begin({
@@ -76,6 +79,14 @@ function RecordingSession() {
         chunkUploads={uploadSession.chunkUploads}
         onRetryChunk={uploadSession.retryChunk}
       />
+      {uploadSession.status === "completed" && (
+        <TranscriptViewer
+          transcript={transcript.transcript}
+          isPolling={transcript.isPolling}
+          error={transcript.error}
+          onSwapSpeakers={() => void transcript.swapSpeakers()}
+        />
+      )}
     </div>
   );
 }
@@ -90,7 +101,7 @@ export default function Home() {
     <main className="min-h-screen px-12 pb-16 pt-16">
       <div className="mx-auto max-w-5xl">
         <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
-          Clinical AI · Milestone 3 dev preview
+          Clinical AI · Milestone 6 dev preview
         </p>
         <div className="mb-12">
           <h2 className="mb-4 text-5xl font-extrabold tracking-tight text-[var(--color-on-background)]">

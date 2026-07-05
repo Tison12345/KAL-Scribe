@@ -1,0 +1,22 @@
+[project]
+name = "asr-service"
+version = "0.1.0"
+description = "Stateless speech-to-text microservice (architecture.md §3.2, §8) — the only thing in this repo that imports torch/whisperx."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.34",
+  "python-multipart>=0.0.20",
+  "python-dotenv>=1.0",
+  "whisperx==3.8.6",
+  "torch==2.8.0",
+  "torchaudio==2.8.0",
+  "pydantic>=2.9",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app", "app.stt", "app.diarization", "app.schemas"]

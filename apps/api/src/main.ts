@@ -1,3 +1,10 @@
+// Must be the very first import: EnvModule calls parseApiEnv() at
+// class-definition time (when app.module.ts's import chain first
+// evaluates it), which happens as soon as `AppModule` is imported
+// below — so process.env needs to already be populated from .env
+// before that import statement runs, not just before bootstrap()
+// executes.
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import express from 'express';
 import type { ApiEnv } from '@kal-scribe/config';

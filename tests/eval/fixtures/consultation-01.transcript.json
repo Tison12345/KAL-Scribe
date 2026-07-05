@@ -1,0 +1,18 @@
+[
+  { "speaker": "Doctor", "text": "So tell me, what's been bothering you these last few weeks?", "start": 0.0, "end": 4.2, "wordConfidence": null },
+  { "speaker": "Patient", "text": "Mostly lower back pain, it's worse in the morning, and I haven't been sleeping well because of it.", "start": 4.6, "end": 10.1, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "How long has this been going on?", "start": 10.5, "end": 12.3, "wordConfidence": null },
+  { "speaker": "Patient", "text": "About three weeks now. It's a dull ache mostly, but sometimes it gets sharp if I bend down.", "start": 12.8, "end": 18.4, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "Any numbness or tingling down the legs?", "start": 18.9, "end": 21.0, "wordConfidence": null },
+  { "speaker": "Patient", "text": "No, just the stiffness, mainly in the lower back itself.", "start": 21.4, "end": 24.6, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "Okay, that's helpful. Have you had any back problems before, or does anyone in your family have chronic back issues?", "start": 25.0, "end": 30.8, "wordConfidence": null },
+  { "speaker": "Patient", "text": "My mother has arthritis, but I haven't had back pain like this before.", "start": 31.2, "end": 35.5, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "Understood. Based on what you're describing, this looks like a mechanical lower back strain, likely aggravated by poor sleep posture. I'm not seeing anything that points to nerve involvement at this stage.", "start": 36.0, "end": 45.3, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "I'd like to start you on Ashwagandha, 500 milligrams, twice a day after food, for two weeks.", "start": 45.8, "end": 51.9, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "I'd also recommend a warm sesame oil massage on the lower back every night before bed.", "start": 52.3, "end": 57.0, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "In terms of diet, avoid cold and raw foods for now, and try to eat warm, cooked meals. Reduce caffeine in the evenings too, it's probably not helping your sleep.", "start": 57.5, "end": 66.8, "wordConfidence": null },
+  { "speaker": "Patient", "text": "Okay, I can do that. Should I avoid exercise?", "start": 67.2, "end": 69.5, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "No, gentle walking every day is good, just avoid heavy lifting or bending for now. Sleep has clearly been disturbed too, so try to keep a consistent bedtime.", "start": 70.0, "end": 78.6, "wordConfidence": null },
+  { "speaker": "Doctor", "text": "Let's have you come back in two weeks so I can see how the pain is responding to the massage and the Ashwagandha.", "start": 79.1, "end": 85.0, "wordConfidence": null },
+  { "speaker": "Patient", "text": "Sounds good, thank you.", "start": 85.4, "end": 86.6, "wordConfidence": null }
+]

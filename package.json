@@ -11,7 +11,8 @@
     "dev": "pnpm -r --parallel --if-present dev",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test"
+    "test": "pnpm -r --if-present test",
+    "eval": "pnpm --filter @kal-scribe/eval eval"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
@@ -21,6 +22,6 @@
     "typescript-eslint": "^8.20.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": ["esbuild", "msgpackr-extract"]
   }
 }

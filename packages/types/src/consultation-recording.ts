@@ -46,6 +46,11 @@ export interface RequestChunkUploadResponse {
   expiresAt: string;
 }
 
+export interface RequestChunkReadResponse {
+  readUrl: string;
+  expiresAt: string;
+}
+
 export interface CompleteUploadRequest {
   durationSeconds: number;
 }

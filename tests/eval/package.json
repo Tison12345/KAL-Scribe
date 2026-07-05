@@ -1,0 +1,22 @@
+{
+  "name": "@kal-scribe/eval",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Extraction/transcription accuracy harness (architecture.md §18 Milestone 7, §20 principle 7) — fixtures scored against hand-labeled ground truth, so a model/prompt change has a measurable before/after.",
+  "type": "module",
+  "scripts": {
+    "eval": "tsx src/run-eval.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@kal-scribe/llm-client": "workspace:*",
+    "@kal-scribe/types": "workspace:*",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.0",
+    "typescript": "^5.7.3"
+  }
+}

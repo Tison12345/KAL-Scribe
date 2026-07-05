@@ -19,6 +19,10 @@ const apiEnvSchema = z.object({
   STORAGE_DRIVER: z.enum(["local"]).default("local"),
   STORAGE_LOCAL_DIR: z.string().min(1).default(".data/storage"),
   STORAGE_SIGNED_URL_SECRET: z.string().min(1).optional(),
+  /** Required, no local-only fallback — unlike Postgres/Storage, BullMQ
+   * genuinely needs a real Redis-compatible server; there's no
+   * embeddable stand-in for it. */
+  REDIS_URL: z.string().min(1),
 });
 
 export type ApiEnv = Omit<z.infer<typeof apiEnvSchema>, "STORAGE_SIGNED_URL_SECRET"> & {

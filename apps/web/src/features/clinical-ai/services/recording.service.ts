@@ -1,6 +1,7 @@
 import type {
   CompleteUploadRequest,
   CompleteUploadResponse,
+  ConsultationTranscript,
   RequestChunkUploadRequest,
   RequestChunkUploadResponse,
   StartRecordingRequest,
@@ -10,12 +11,12 @@ import { getApiBaseUrl } from "@/lib/env";
 
 async function postJson<TResponse>(
   path: string,
-  body: unknown,
+  body?: unknown,
 ): Promise<TResponse> {
   const res = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
     throw new Error(`${path} failed: ${res.status} ${await res.text()}`);
@@ -41,6 +42,28 @@ export function completeUpload(
   request: CompleteUploadRequest,
 ): Promise<CompleteUploadResponse> {
   return postJson(`/clinical-ai/recordings/${recordingId}/complete`, request);
+}
+
+/** Returns null (not a rejected promise) when the transcript doesn't
+ * exist yet — normal while transcription is still processing in the
+ * background, not an error the caller needs to handle specially. */
+export async function getTranscript(
+  recordingId: string,
+): Promise<ConsultationTranscript | null> {
+  const res = await fetch(
+    `${getApiBaseUrl()}/clinical-ai/recordings/${recordingId}/transcript`,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Failed to get transcript: ${res.status} ${await res.text()}`);
+  }
+  return res.json() as Promise<ConsultationTranscript>;
+}
+
+export function relabelTranscriptSpeakers(
+  recordingId: string,
+): Promise<ConsultationTranscript> {
+  return postJson(`/clinical-ai/recordings/${recordingId}/transcript/relabel`);
 }
 
 /** PUTs raw chunk bytes to the signed upload URL — a direct

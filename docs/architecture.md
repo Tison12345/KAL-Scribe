@@ -695,6 +695,7 @@ Because every folder name, layering convention, and naming pattern (`*.use-case.
 | `workers/clinical-ai-worker` | Becomes a new worker entrypoint alongside however Repo B ends up running its own workers (to be confirmed against Repo B's current worker-deployment approach at integration time — flagged as an integration-phase task, not assumed here) |
 | `python/asr-service` | Deployed as its own service in whatever infra Repo B uses (its `infrastructure/docker/docker-compose.yml` already composes multiple services, so this fits that existing pattern) |
 | `cms-integration.adapter.ts` | **Deleted**, not moved — replaced by direct calls into Repo B's real `ConsultationsModule`/`PrescriptionsModule` use-cases, since the seam this file exists for no longer needs to cross a repo boundary |
+| `workers/clinical-ai-worker`'s HTTP client files (`asr-client.ts`, `recording-client.ts`, `transcript-client.ts`, `extraction-client.ts`) | **Deleted**, not moved — same treatment as `cms-integration.adapter.ts` above. These exist because the worker's real invocation pattern against Repo B was left open (see the row above); once that's resolved at integration, replaced either by direct in-process use-case calls or by pointed-at-Repo-B HTTP calls, per whichever way that decision actually lands. See `docs/adr/` for the deviation record from Milestone 7 explaining why this layer exists in the standalone repo in the first place. |
 
 ---
 

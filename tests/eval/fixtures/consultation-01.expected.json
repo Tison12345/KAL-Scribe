@@ -1,0 +1,32 @@
+{
+  "description": "Mechanical lower back strain, Ashwagandha + sesame oil massage, diet/lifestyle advice, 2-week follow-up. Hand-labeled against tests/eval/fixtures/consultation-01.transcript.json.",
+  "chiefComplaint": {
+    "requiredKeywords": ["back pain"]
+  },
+  "diagnosis": {
+    "acceptNull": true,
+    "acceptableSubstrings": ["strain", "mechanical"],
+    "forbiddenSubstrings": ["arthritis"]
+  },
+  "medicinesMentioned": {
+    "expectedNames": ["ashwagandha"]
+  },
+  "treatmentsMentioned": {
+    "expectedNames": ["sesame oil massage", "massage"]
+  },
+  "diet": {
+    "expectedRestrictionKeywords": ["cold", "raw"],
+    "expectedRecommendationKeywords": ["warm"]
+  },
+  "lifestyle": {
+    "sleepMentionedExpected": true,
+    "activityExpectedKeywords": ["walking"]
+  },
+  "followUp": {
+    "recommendedExpected": true,
+    "timeframeKeywords": ["two weeks", "2 weeks"]
+  },
+  "history": {
+    "familyHistoryExpectedKeywords": ["arthritis"]
+  }
+}

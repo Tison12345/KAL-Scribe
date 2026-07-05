@@ -1,0 +1,22 @@
+{
+  "name": "@kal-scribe/llm-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "LLM provider abstraction for clinical extraction (architecture.md §10) — one interface, swappable vendor implementations selected via LLM_PROVIDER.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@kal-scribe/types": "workspace:*",
+    "@kal-scribe/validation": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

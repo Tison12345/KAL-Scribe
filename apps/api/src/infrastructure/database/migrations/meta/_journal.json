@@ -8,6 +8,27 @@
       "when": 1783191216364,
       "tag": "0000_talented_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783225851126,
+      "tag": "0001_demonic_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783235378586,
+      "tag": "0002_chubby_bloodscream",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783242225519,
+      "tag": "0003_romantic_inhumans",
+      "breakpoints": true
     }
   ]
 }
