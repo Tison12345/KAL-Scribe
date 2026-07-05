@@ -3,7 +3,9 @@ import type {
   AcceptReviewDraftRequest,
   CompleteUploadRequest,
   CompleteUploadResponse,
+  ConsultationAiJob,
   ConsultationAiResult,
+  ConsultationRecording,
   ConsultationTranscript,
   CreateExtractionResultRequest,
   CreateExtractionResultResponse,
@@ -35,7 +37,9 @@ import { CreateTranscriptUseCase } from '../application/create-transcript.use-ca
 import { DiscardReviewDraftUseCase } from '../application/discard-review-draft.use-case';
 import { EnqueueExtractionJobUseCase } from '../application/enqueue-extraction-job.use-case';
 import { GetExtractionResultUseCase } from '../application/get-extraction-result.use-case';
+import { GetRecordingUseCase } from '../application/get-recording.use-case';
 import { GetTranscriptUseCase } from '../application/get-transcript.use-case';
+import { ListRecordingJobsUseCase } from '../application/list-recording-jobs.use-case';
 import { RelabelTranscriptSpeakersUseCase } from '../application/relabel-transcript-speakers.use-case';
 import { RequestChunkReadUseCase } from '../application/request-chunk-read.use-case';
 import { RequestChunkUploadUseCase } from '../application/request-chunk-upload.use-case';
@@ -60,6 +64,8 @@ export class ClinicalAiController {
     private readonly updateReviewDraft: UpdateReviewDraftUseCase,
     private readonly acceptReviewDraft: AcceptReviewDraftUseCase,
     private readonly discardReviewDraft: DiscardReviewDraftUseCase,
+    private readonly getRecording: GetRecordingUseCase,
+    private readonly listRecordingJobs: ListRecordingJobsUseCase,
   ) {}
 
   @Post()
@@ -68,6 +74,20 @@ export class ClinicalAiController {
     body: StartRecordingRequest,
   ): Promise<StartRecordingResponse> {
     return this.startRecording.execute(body);
+  }
+
+  @Get(':id')
+  async getRecordingById(
+    @Param('id') id: string,
+  ): Promise<ConsultationRecording> {
+    return this.getRecording.execute(id);
+  }
+
+  @Get(':id/jobs')
+  async getRecordingJobs(
+    @Param('id') id: string,
+  ): Promise<ConsultationAiJob[]> {
+    return this.listRecordingJobs.execute(id);
   }
 
   @Post(':id/chunks')

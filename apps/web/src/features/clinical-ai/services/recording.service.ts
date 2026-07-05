@@ -2,7 +2,9 @@ import type {
   AcceptReviewDraftRequest,
   CompleteUploadRequest,
   CompleteUploadResponse,
+  ConsultationAiJob,
   ConsultationAiResult,
+  ConsultationRecording,
   ConsultationTranscript,
   RequestChunkUploadRequest,
   RequestChunkUploadResponse,
@@ -118,6 +120,27 @@ export function discardReviewDraft(
   recordingId: string,
 ): Promise<ConsultationAiResult> {
   return postJson(`/clinical-ai/recordings/${recordingId}/extraction/discard`);
+}
+
+export async function getRecording(
+  recordingId: string,
+): Promise<ConsultationRecording | null> {
+  const res = await fetch(`${getApiBaseUrl()}/clinical-ai/recordings/${recordingId}`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Failed to get recording: ${res.status} ${await res.text()}`);
+  }
+  return res.json() as Promise<ConsultationRecording>;
+}
+
+export async function getRecordingJobs(
+  recordingId: string,
+): Promise<ConsultationAiJob[]> {
+  const res = await fetch(`${getApiBaseUrl()}/clinical-ai/recordings/${recordingId}/jobs`);
+  if (!res.ok) {
+    throw new Error(`Failed to get recording jobs: ${res.status} ${await res.text()}`);
+  }
+  return res.json() as Promise<ConsultationAiJob[]>;
 }
 
 /** PUTs raw chunk bytes to the signed upload URL — a direct

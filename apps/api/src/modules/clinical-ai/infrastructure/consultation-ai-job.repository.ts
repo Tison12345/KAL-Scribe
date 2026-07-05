@@ -30,6 +30,18 @@ export class ConsultationAiJobRepository {
     return row;
   }
 
+  /** Every job (transcription, extraction) enqueued for one recording —
+   * the backing data for the frontend's pipeline-progress tracker
+   * (stage + per-stage timing from started_at/completed_at). */
+  async findByRecordingId(
+    recordingId: string,
+  ): Promise<ConsultationAiJobRow[]> {
+    return this.db
+      .select()
+      .from(consultationAiJobs)
+      .where(eq(consultationAiJobs.recordingId, recordingId));
+  }
+
   async update(
     id: string,
     data: Partial<NewConsultationAiJobRow>,

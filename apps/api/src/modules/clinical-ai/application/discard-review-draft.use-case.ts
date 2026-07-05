@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { ConsultationAiResult } from '@kal-scribe/types';
 import { ConsultationAiResultRepository } from '../infrastructure/consultation-ai-result.repository';
 import { toConsultationAiResult } from './consultation-ai-result.mapper';
@@ -19,6 +23,16 @@ export class DiscardReviewDraftUseCase {
     }
     if (row.status === 'discarded') {
       return toConsultationAiResult(row);
+    }
+    // An accepted draft was already submitted to the CMS (a real
+    // acceptedCmsPrescriptionRef exists) — silently discarding it
+    // afterward would leave this record showing "discarded" while the
+    // CMS still has the submitted prescription. Same reasoning as the
+    // symmetric check in AcceptReviewDraftUseCase.
+    if (row.status === 'accepted') {
+      throw new BadRequestException(
+        'This draft was already accepted and cannot be discarded.',
+      );
     }
 
     const updated = await this.repository.update(row.id, {

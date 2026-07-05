@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type {
   AcceptReviewDraftRequest,
   ClinicalExtraction,
@@ -40,6 +45,15 @@ export class AcceptReviewDraftUseCase {
     }
     if (row.status === 'accepted') {
       return toConsultationAiResult(row);
+    }
+    // A discarded draft is a terminal, deliberate doctor decision —
+    // unlike the 'accepted' idempotency check above, this must not
+    // silently succeed. Without this, a discarded draft could still
+    // be submitted to the CMS as a real prescription later.
+    if (row.status === 'discarded') {
+      throw new BadRequestException(
+        'This draft was discarded and cannot be accepted.',
+      );
     }
 
     const recording = await this.recordings.findById(recordingId);

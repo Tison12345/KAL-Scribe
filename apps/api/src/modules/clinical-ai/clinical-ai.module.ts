@@ -6,8 +6,10 @@ import { CreateTranscriptUseCase } from './application/create-transcript.use-cas
 import { DiscardReviewDraftUseCase } from './application/discard-review-draft.use-case';
 import { EnqueueExtractionJobUseCase } from './application/enqueue-extraction-job.use-case';
 import { GetExtractionResultUseCase } from './application/get-extraction-result.use-case';
+import { GetRecordingUseCase } from './application/get-recording.use-case';
 import { GetTranscriptUseCase } from './application/get-transcript.use-case';
 import { ListDeadLetterJobsUseCase } from './application/list-dead-letter-jobs.use-case';
+import { ListRecordingJobsUseCase } from './application/list-recording-jobs.use-case';
 import { RelabelTranscriptSpeakersUseCase } from './application/relabel-transcript-speakers.use-case';
 import { ReprocessJobUseCase } from './application/reprocess-job.use-case';
 import { RequestChunkReadUseCase } from './application/request-chunk-read.use-case';
@@ -63,6 +65,8 @@ import { LocalStorageController } from './presentation/local-storage.controller'
     UpdateReviewDraftUseCase,
     AcceptReviewDraftUseCase,
     DiscardReviewDraftUseCase,
+    GetRecordingUseCase,
+    ListRecordingJobsUseCase,
     ListDeadLetterJobsUseCase,
     ReprocessJobUseCase,
     ClinicalAiQueueEventsService,

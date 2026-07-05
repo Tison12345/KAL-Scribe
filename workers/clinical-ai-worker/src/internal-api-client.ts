@@ -219,6 +219,17 @@ export function persistExtractionResult(
 // python/asr-service
 // ---------------------------------------------------------------------------
 
+// Node's default fetch (undici) agent times out a request at 300s
+// (headers+body) — fine for the few-second test clips used so far,
+// but a real multi-minute consultation on CPU-only WhisperX+Pyannote
+// (docs/adr/0009) can genuinely take longer than that to transcribe
+// and diarize. Without an explicit, longer timeout, the client gives
+// up and BullMQ retries while python/asr-service — which has no idea
+// the client disconnected — keeps computing the abandoned request in
+// the background, piling up CPU/memory across retries instead of
+// cleanly failing or succeeding once.
+const ASR_SERVICE_TIMEOUT_MS = 20 * 60 * 1000;
+
 /** Calls python/asr-service (architecture.md §3.2, §8). */
 export async function processAudio(
   asrServiceUrl: string,
@@ -235,6 +246,7 @@ export async function processAudio(
   const res = await fetch(`${asrServiceUrl}/v1/process-audio`, {
     method: "POST",
     body: formData,
+    signal: AbortSignal.timeout(ASR_SERVICE_TIMEOUT_MS),
   });
 
   if (!res.ok) {
