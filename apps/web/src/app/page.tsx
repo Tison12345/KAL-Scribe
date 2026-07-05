@@ -1,66 +1,109 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { useEffect, useId } from "react";
+import {
+  ClinicalSessionProvider,
+  useClinicalSession,
+} from "@/features/clinical-ai/providers/ClinicalSessionProvider";
+import { ConsentConfirmation } from "@/features/clinical-ai/components/ConsentConfirmation";
+import { RecordButton } from "@/features/clinical-ai/components/RecordButton";
+import { UploadProgress } from "@/features/clinical-ai/components/UploadProgress";
+import { useAudioRecorder } from "@/features/clinical-ai/hooks/useAudioRecorder";
+import { useUploadSession } from "@/features/clinical-ai/hooks/useUploadSession";
+
+// No auth/identity exists yet in this standalone repo (architecture.md
+// §17 Phase 1 — stub what the real CMS would provide until Phase 3/4).
+const DEV_DOCTOR_ID_REF = "dev-doctor";
+
+/**
+ * Milestone 2/3 dev preview: hosts the recording + upload feature
+ * standalone, against a locally generated session ref, until this repo
+ * has a real consultation screen to mount into.
+ */
+function RecordingSession() {
+  const { sessionRef, consentConfirmed } = useClinicalSession();
+  const recorder = useAudioRecorder();
+  const uploadSession = useUploadSession(recorder.chunks);
+
+  const handleStart = () => {
+    void uploadSession.begin({
+      consultationSessionRef: sessionRef,
+      doctorIdRef: DEV_DOCTOR_ID_REF,
+    });
+    void recorder.start();
+  };
+
+  // Once recording has stopped and every captured chunk has finished
+  // uploading, finalize the recording server-side.
+  useEffect(() => {
+    if (recorder.status !== "stopped") return;
+    if (uploadSession.status !== "active") return;
+    if (recorder.chunks.length === 0) return;
+
+    const allUploaded = recorder.chunks.every((chunk) =>
+      uploadSession.chunkUploads.some(
+        (upload) =>
+          upload.sequence === chunk.sequence && upload.status === "uploaded",
+      ),
+    );
+    if (allUploaded) {
+      void uploadSession.complete(recorder.durationSeconds);
+    }
+  }, [
+    recorder.status,
+    recorder.chunks,
+    recorder.durationSeconds,
+    uploadSession,
+  ]);
+
+  return (
+    <div className="space-y-8">
+      <ConsentConfirmation />
+      <RecordButton
+        status={recorder.status}
+        error={recorder.error}
+        durationSeconds={recorder.durationSeconds}
+        audioLevel={recorder.audioLevel}
+        disabled={!consentConfirmed}
+        onStart={handleStart}
+        onPause={recorder.pause}
+        onResume={recorder.resume}
+        onStop={recorder.stop}
+      />
+      <UploadProgress
+        status={uploadSession.status}
+        error={uploadSession.error}
+        chunkUploads={uploadSession.chunkUploads}
+        onRetryChunk={uploadSession.retryChunk}
+      />
+    </div>
+  );
+}
 
 export default function Home() {
+  // useId (not crypto.randomUUID) so this is stable across the
+  // server-rendered and client-hydrated pass — this is a dev-preview
+  // session identifier, not a real appointment/consultation ref.
+  const sessionRef = useId();
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen px-12 pb-16 pt-16">
+      <div className="mx-auto max-w-5xl">
+        <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
+          Clinical AI · Milestone 3 dev preview
+        </p>
+        <div className="mb-12">
+          <h2 className="mb-4 text-5xl font-extrabold tracking-tight text-[var(--color-on-background)]">
+            Record Consultation
+          </h2>
+          <p className="text-lg font-medium leading-relaxed text-[var(--color-on-surface-variant)]">
+            Session {sessionRef}
           </p>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        <ClinicalSessionProvider sessionRef={sessionRef}>
+          <RecordingSession />
+        </ClinicalSessionProvider>
+      </div>
+    </main>
   );
 }

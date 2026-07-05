@@ -13,6 +13,10 @@ next-env.d.ts
 # testing / coverage
 coverage/
 
+# local dev data stand-ins (PGlite database, local-disk storage) —
+# never real production data, see docs/adr/0007
+.data/
+
 # env files (never commit real secrets — see .env.example per app)
 .env
 .env.*
