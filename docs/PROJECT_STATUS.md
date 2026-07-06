@@ -158,6 +158,13 @@ one rule yet, a documented open item, not a code bug).
 
 ## Known issues / risks
 
+- **CI build order fixed (2026-07-06)**: `.github/workflows/ci.yml` ran
+  `lint` before `build`, so `@kal-scribe/types`/`@kal-scribe/validation`
+  (typed via `dist/index.d.ts`) had no `dist/` yet on a fresh checkout,
+  making apps/api's imports resolve to `any` and tripping 84
+  `@typescript-eslint/no-unsafe-*` errors. Reordered to build first;
+  verified `pnpm build && pnpm lint` passes clean workspace-wide. See
+  `docs/log/2026-07-06-ci-lint-before-build-ordering-fix.md`.
 - **`asr-service` has no request-cancellation mechanism** — a
   20-minute timeout (fixed today) makes premature retries far less
   likely, but if a request is genuinely abandoned (timeout, worker
