@@ -1,32 +1,35 @@
 {
-  "description": "Mechanical lower back strain, Ashwagandha + sesame oil massage, diet/lifestyle advice, 2-week follow-up. Hand-labeled against tests/eval/fixtures/consultation-01.transcript.json.",
-  "chiefComplaint": {
+  "description": "Mechanical lower back strain, Ashwagandha + sesame oil massage, diet/lifestyle advice, 2-week follow-up. No physical-examination findings (Ashtavidha/Srotas/Prakrithi/Dosha/Agni/Ojas) were ever stated aloud. Hand-labeled against tests/eval/fixtures/consultation-01.transcript.json.",
+  "complaints": {
     "requiredKeywords": ["back pain"]
   },
-  "diagnosis": {
+  "modernDiagnosis": {
     "acceptNull": true,
     "acceptableSubstrings": ["strain", "mechanical"],
     "forbiddenSubstrings": ["arthritis"]
   },
-  "medicinesMentioned": {
-    "expectedNames": ["ashwagandha"]
+  "medicines": {
+    "expectedNameKeywords": ["ashwagandha"]
   },
-  "treatmentsMentioned": {
-    "expectedNames": ["sesame oil massage", "massage"]
+  "treatments": {
+    "expectedNameKeywords": ["massage"]
   },
-  "diet": {
-    "expectedRestrictionKeywords": ["cold", "raw"],
-    "expectedRecommendationKeywords": ["warm"]
+  "dietAvoid": {
+    "expectedKeywords": ["cold", "raw"]
   },
-  "lifestyle": {
-    "sleepMentionedExpected": true,
-    "activityExpectedKeywords": ["walking"]
+  "dietEat": {
+    "expectedKeywords": ["warm"]
+  },
+  "lifestyleMaintain": {
+    "expectedKeywords": ["walking"]
   },
   "followUp": {
-    "recommendedExpected": true,
-    "timeframeKeywords": ["two weeks", "2 weeks"]
+    "expectedValue": 2,
+    "expectedUnit": "weeks"
   },
-  "history": {
-    "familyHistoryExpectedKeywords": ["arthritis"]
-  }
+  "familyHistory": {
+    "expectedDisease": "Arthritis",
+    "expectedRelationKeyword": "Mother"
+  },
+  "examFindingsShouldBeEmpty": true
 }

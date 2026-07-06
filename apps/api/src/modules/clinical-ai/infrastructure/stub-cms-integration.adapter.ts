@@ -25,7 +25,7 @@ export class StubCmsIntegrationAdapter implements CmsIntegrationAdapter {
     const cmsPrescriptionRef = `stub-prescription-${randomUUID()}`;
     this.logger.log(
       `[stub cms-integration] submitPrescriptionDraft(sessionRef="${consultationSessionRef}") -> ${cmsPrescriptionRef} ` +
-        `(${extraction.medicinesMentioned.length} medicine(s), ${extraction.treatmentsMentioned.length} treatment(s))`,
+        `(${extraction.medicines.length} medicine(s), ${extraction.treatments.length} treatment(s))`,
     );
     return Promise.resolve({ cmsPrescriptionRef });
   }

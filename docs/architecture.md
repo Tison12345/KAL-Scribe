@@ -421,125 +421,36 @@ The extraction schema (§11), not the vendor, is this module's real intellectual
 
 ## 11. Clinical Extraction Engine — Output Schema
 
-This is the contract the LLM extraction step (§7, step 8) must produce, and the contract `packages/types` and `packages/validation` encode as the source of truth for both TypeScript and (mirrored) Python Pydantic models.
+**Superseded by the real clinical form, as of 2026-07-06 — see
+`docs/modules/clinical-extraction-schema.md` for the authoritative,
+actually-implemented schema.** The version originally documented here
+was a generic placeholder (`chief_complaint`, `symptoms[]` with
+severity/pain-characteristics, a SOAP note, generic
+`diet.recommendations`/`restrictions`, etc.) written before this
+repo's real integration target — an existing CMS at
+`C:\KAL-clinic-management-solution` — had been examined field by
+field. Once it was, the schema was rebuilt from scratch to mirror that
+CMS's own `Consultation`/`Prescription` field names and option sets
+directly (verified against the actual section components, not just
+the CMS's type file), so the eventual deterministic mapping step (§7
+stage 11, Milestone 9) is mechanical rather than a translation layer.
+This section is kept as a historical record of the original generic
+intent; it is not the contract `packages/types` and
+`packages/validation` actually encode.
 
-```jsonc
-{
-  "schema_version": "1.0",                      // bump on any breaking field change — see §16
-  "chief_complaint": {
-    "text": "string",                            // primary reason for visit, in patient's/doctor's words
-    "duration": "string | null",                  // e.g. "3 weeks" — null if not stated
-    "onset": "gradual | sudden | null"
-  },
-  "symptoms": [
-    {
-      "description": "string",
-      "location": "string | null",                // e.g. "lower back"
-      "duration": "string | null",
-      "severity": "mild | moderate | severe | null",
-      "pain_characteristics": {                    // present only if the symptom is pain
-        "type": "sharp | dull | throbbing | burning | stiffness | null",
-        "aggravating_factors": ["string"],
-        "relieving_factors": ["string"]
-      } 
-    }
-  ],
-  "history": {
-    "past_medical_history_mentioned": ["string"],  // only what was explicitly said in THIS consultation,
-                                                    // not pulled from CMS patient record (that's a separate
-                                                    // merge step done by the CMS, not by this LLM call)
-    "family_history_mentioned": ["string"],
-    "prior_treatments_mentioned": ["string"]
-  },
-  "diagnosis": {
-    "stated": "string | null",                     // populated ONLY if the doctor explicitly stated a
-                                                    // diagnosis in the audio — never inferred. If the
-                                                    // doctor didn't say it, this is null, full stop.
-    "differential_mentioned": ["string"]           // conditions the doctor mentioned considering/ruling out
-  },
-  "medicines_mentioned": [
-    {
-      "name": "string",
-      "dosage": "string | null",
-      "frequency": "string | null",
-      "duration": "string | null",
-      "instructions": "string | null",              // e.g. "before food"
-      "match_confidence": "number 0-1 | null"        // filled by the deterministic mapping step (§7 stage
-                                                       // 11), not the LLM — LLM leaves this null
-    }
-  ],
-  "diet": {
-    "recommendations": ["string"],
-    "restrictions": ["string"]
-  },
-  "lifestyle": {
-    "recommendations": ["string"],
-    "sleep": {
-      "mentioned": "boolean",
-      "quality": "good | poor | disturbed | null",
-      "notes": "string | null"
-    },
-    "stress": {
-      "mentioned": "boolean",
-      "level": "low | moderate | high | null",
-      "notes": "string | null"
-    },
-    "activity_recommendations": ["string"]
-  },
-  "treatments_mentioned": [
-    {
-      "name": "string",                             // free text; deterministic mapping resolves against
-                                                      // the CMS treatment master list, incl. Panchakarma
-      "type": "panchakarma | other_treatment | null",
-      "notes": "string | null"
-    }
-  ],
-  "advice_given": ["string"],                        // general advice not captured elsewhere
-  "follow_up": {
-    "recommended": "boolean",
-    "timeframe": "string | null",                    // e.g. "2 weeks"
-    "reason": "string | null"
-  },
-  "soap": {
-    "subjective": "string",                           // patient-reported: complaint, symptoms, history
-    "objective": "string",                            // doctor-observed/stated findings, if any voiced aloud
-    "assessment": "string",                           // doctor's stated assessment/diagnosis reasoning
-    "plan": "string"                                  // treatment plan, medicines, follow-up as narrative
-  },
-  "clinical_notes": "string",                          // free-text catch-all for anything clinically
-                                                        // relevant that doesn't fit a structured field
-  "risk_flags": [
-    {
-      "type": "possible_medicine_conflict | red_flag_symptom | incomplete_info | other",
-      "description": "string",
-      "severity": "info | warning | critical"
-    }
-  ],
-  "ai_confidence": {
-    "overall": "number 0-1",
-    "per_field": {
-      "chief_complaint": "number 0-1",
-      "diagnosis": "number 0-1",
-      "medicines_mentioned": "number 0-1",
-      "soap": "number 0-1"
-      // ... one entry per top-level field the doctor sees a confidence badge on
-    },
-    "low_confidence_reason": "string | null"           // e.g. "overlapping speech", "audio quality poor"
-  },
-  "transcript_reference": {
-    "consultation_transcript_id": "uuid",
-    "segments_used": ["segment_id"]                    // traceability: which transcript segments this
-                                                        // extraction was derived from, for doctor drill-down
-  }
-}
-```
+Concepts that existed in the original placeholder and do **not**
+carry over to the real schema: `symptoms[]` as a structured
+severity/pain-characteristics object (replaced by a plain `complaints`
+string list, matching the CMS's own field), `diagnosis.differential_mentioned`
+(the CMS has no differential-diagnosis concept), a SOAP note (the CMS
+has no SOAP concept at all), and generic `diet`/`lifestyle` objects
+(replaced by the CMS's own `dietEat`/`dietAvoid`/`lifestyleMaintain`/
+`lifestyleAvoid` shape). The clinical-safety principles below carried
+forward unchanged into the real schema:
 
-**Design notes (why these choices, not others):**
-
-- `diagnosis.stated` being nullable-by-default is a deliberate clinical-safety constraint, not an oversight — this module must never put words in the doctor's mouth. It mirrors CLAUDE.md's spirit of validating everything user-facing before it's treated as fact.
-- `medicines_mentioned[].match_confidence` is explicitly *not* an LLM-populated field — it's populated by the deterministic fuzzy-match step against the CMS medicine master list (§7 stage 11), because LLMs are unreliable oracles for "does this string exactly match an entry in this specific enum," while a string-similarity/lookup algorithm is both more accurate and fully auditable.
-- `ai_confidence.per_field` exists because a single overall confidence score hides exactly the information the doctor needs — "the chief complaint is solid but the diagnosis field is shaky" is actionable; "72% confident" as one number is not.
-- `transcript_reference.segments_used` is what lets `TranscriptViewer.tsx` highlight the exact transcript lines a given draft field came from when the doctor clicks it — critical for doctor trust and for audit.
+- A stated-diagnosis field (`modernDiagnosis` in the real schema) stays nullable-by-default as a deliberate clinical-safety constraint — this module must never put words in the doctor's mouth. Extended in the real schema to *every* physical-examination finding (Ashtavidha Pariksha, Srotas Pariksha, Prakrithi, Dosha, Agni, Ojas) — none of these may be inferred from symptoms or context, only from the doctor stating the finding aloud.
+- Medicine match-confidence stays explicitly *not* an LLM-populated field — filled by the deterministic fuzzy-match step against the CMS medicine master list (§7 stage 11, Milestone 9), never guessed by the LLM.
+- Per-field AI confidence and transcript-segment traceability both carried forward, field-for-field, into the real schema's `aiConfidence`/`transcriptReference`.
 
 ---
 

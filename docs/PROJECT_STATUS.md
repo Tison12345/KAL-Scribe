@@ -5,9 +5,9 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-07-05 — Milestone 8: Review UI + real pipeline
-progress tracker, verified against real recordings (two real bugs
-found and fixed)
+**Last updated:** 2026-07-06 — Extraction schema rebuilt against the
+real clinical form (not architecture.md §11's original placeholder),
+verified against real recordings
 
 ## One-paragraph summary
 
@@ -45,6 +45,27 @@ click-through of `ReviewDraftPanel` itself (not just its backing
 endpoints) is still worth a look, though the underlying data is now
 confirmed correct end-to-end.
 
+**2026-07-06: the entire extraction schema was rebuilt from scratch**
+against the real clinical form, not architecture.md §11's original
+generic placeholder. §11 was written before the real CMS integration
+target (`C:\KAL-clinic-management-solution`) had been examined field
+by field; once it was (reading ~15 actual component files, not just
+the CMS's type file), the schema, LLM prompt, review UI, and eval
+harness were all rewritten to match the CMS's own field names and
+option sets directly — see `docs/modules/clinical-extraction-schema.md`
+for the full derivation and every discrepancy found along the way.
+Verified twice: the eval harness (11/12, 92% — the one "failure" is a
+scorer strictness issue, not a real bug) and a real re-extraction
+against the existing digestion-consultation recording, both correctly
+leaving every physical-examination field (Ashtavidha/Srotas/Prakrithi/
+Dosha/Agni/Ojas) null since none were ever examined aloud — the exact
+hallucination the new prompt rule exists to prevent. One real bug
+found and fixed: a family-history disease name outside the UI's 7
+canonical checkboxes would have been silently invisible in the review
+screen (fixed the prompt to route those into the UI's actual "_other"
+field instead — though the LLM doesn't 100% reliably comply with this
+one rule yet, a documented open item, not a code bug).
+
 ## What's built
 
 - Milestones 1–7 — see their own log entries (repo scaffold; recording
@@ -69,13 +90,13 @@ confirmed correct end-to-end.
     stays auditable), `POST :id/extraction/accept` (calls the CMS stub,
     marks `accepted`, idempotent), `POST :id/extraction/discard`
     (idempotent).
-  - **`ReviewDraftPanel`** — the full doctor-facing review screen:
-    every §11 field editable (chief complaint, symptoms, history,
-    diagnosis, the Medicines/Diet/Lifestyle/Treatments four-part draft,
-    advice, follow-up, SOAP note, clinical notes), collapsible
-    section cards matching `docs/design/ui-reference.md`'s existing
-    patterns exactly, `ConfidenceBadge`/`RiskFlagBanner` throughout,
-    accept/discard action bar.
+  - **`ReviewDraftPanel`** — the full doctor-facing review screen,
+    rebuilt 2026-07-06 against the real clinical form fields (see
+    below) — Case Sheet, Detailed Assessment, Medicines, Treatments,
+    Lab Tests/Diet/Lifestyle, collapsible section cards matching
+    `docs/design/ui-reference.md`'s existing patterns exactly,
+    `ConfidenceBadge`/`RiskFlagBanner` throughout, accept/discard
+    action bar.
   - **`useReviewDraft`** — polls for the extraction result (mirrors
     `useTranscript`'s reasoning), holds local edit state, autosaves
     800ms after the doctor stops typing (not on every keystroke).
@@ -99,6 +120,23 @@ confirmed correct end-to-end.
     guessing. Deliberately does not fake fine-grained % progress within
     a stage (architecture.md §19 files real-time transcription as a
     future enhancement, not MVP).
+- **2026-07-06 — Real clinical form schema rebuild** (supersedes
+  architecture.md §11): `ClinicalExtraction` now mirrors the actual CMS
+  (`C:\KAL-clinic-management-solution`) field-for-field — Case Sheet
+  (complaints, personal history, family history, gynec, vitals),
+  Detailed Assessment (Ashtavidha Pariksha, Srotas Pariksha, Prakrithi/
+  Dosha/Agni/Ojas/Ama, diagnosis, notes), and Prescription (medicines
+  with a real dosage grid, treatments with real therapy fields,
+  dietEat/dietAvoid, lifestyleMaintain/lifestyleAvoid, followUpValue/Unit).
+  See `docs/modules/clinical-extraction-schema.md` for the full
+  derivation, every discrepancy found while verifying against the CMS's
+  actual component code (not just its type file), and the two explicit
+  scope decisions made (excluding `emotionalMakeup`, including Family
+  History from a different CMS tab). Verified via `pnpm eval` (11/12)
+  and a real re-extraction against an existing recording — both
+  correctly left every physical-examination field null since none were
+  stated aloud, confirming the new "never infer exam findings" prompt
+  rule works on genuine speech, not just the eval fixture.
 
 ## In progress
 
@@ -134,25 +172,40 @@ confirmed correct end-to-end.
   extraction logic (it correctly extracted what it was given) — an
   upstream STT vocabulary limitation worth watching for a pattern.
 - **`ReviewDraftPanel` itself hasn't been clicked through in a real
-  browser** — only its backing API endpoints have been verified
-  directly (see summary above). The UI code builds/lints clean and the
-  dev server serves it, but no one has typed an edit or clicked
-  Accept/Discard in an actual browser session yet.
-- **`ReviewDraftPanel`'s medicine/treatment/symptom editors use plain
-  text inputs**, not the CMS's actual combobox/master-list-backed
-  editors — those don't exist in this standalone repo yet (Milestone 9
+  browser since its 2026-07-06 rebuild** — verified via a real
+  extraction against a real transcript at the data layer (API responses
+  inspected directly), and the UI code builds/lints clean, but the new
+  Ashtavidha dropdowns, Srotas normal/disturbed toggles, family history
+  matrix, and medicine dosage grid haven't been visually clicked
+  through in an actual browser session yet.
+- **`ReviewDraftPanel`'s medicine/treatment editors use plain text/number
+  inputs**, not the CMS's actual formulary-search/master-list-backed
+  editors (`MedicineNameInput`/`TreatmentNameInput`'s live Supabase
+  search) — those don't exist in this standalone repo yet (Milestone 9
   builds the master-list resolution they'd depend on). Matches
   architecture.md §6's "stub until integration" note explicitly.
-- **Eval harness has one fixture so far, with one known miss** — a
-  "gentle walking" activity recommendation wasn't captured in
-  `activityRecommendations` on the first real run (12/13, 92%). Worth
-  watching for a pattern across more fixtures before treating it as a
-  prompt-quality issue worth fixing.
-- **Primary diarization model 403s** — `pyannote/speaker-diarization-3.1`
-  fails because its dependency `pyannote/segmentation-3.0` needs its
-  own separate gated-terms acceptance (not done). Not blocking — falls
-  back to `pyannote/speaker-diarization-community-1`, which works
-  (~60% turn-level accuracy, verified Milestone 6).
+- **Eval harness has one fixture so far** — rewritten against the new
+  schema, currently 11/12 (92%); the one "failure" is the scorer being
+  stricter than necessary (LLM said `followUpValue: 14,
+  followUpUnit: "days"` for a stated "two weeks" — exactly equivalent,
+  just a different valid unit), not a real extraction bug. Worth more
+  fixtures before drawing conclusions about prompt quality either way.
+- **LLM doesn't 100% reliably route non-canonical family-history
+  diseases into the `"_other"` field** — the prompt explicitly
+  instructs this (so the review UI's fixed 7-checkbox table doesn't
+  silently hide anything), but a same-day retest still produced a
+  free-text disease key instead. Documented as an open LLM-compliance
+  gap, not a code bug — the schema/validation correctly accept either
+  shape either way.
+- **Primary diarization model now active, real before/after comparison
+  done** — `asr-service` now loads `speaker-diarization-3.1` with no
+  403 (gated terms accepted for it and its `segmentation-3.0`
+  dependency), replacing the `community-1` fallback the ~60% Milestone
+  6 baseline was measured on. Re-ran the exact same Milestone 6
+  two-speaker audio directly against the upgraded model: 13/15
+  transcript segments matched exactly, 2 changed, and both changes
+  correctly reassigned a misattributed line to the right speaker.
+  One data point — worth another real test to confirm this holds.
 - **Restart can strand a job's DB status** — unchanged from Milestone
   4, still not fixed.
 - **Local stand-ins, not real infra**, still true for Postgres/Storage
@@ -163,6 +216,11 @@ confirmed correct end-to-end.
 - Two decisions from Milestone 1 remain open pending legal/compliance
   input: cloud LLM data handling (ADR-0002) and the 90-day retention
   default (ADR-0004).
+- **CPU-only transcription+diarization runs ~2× audio duration**
+  (e.g. ~4m for a ~2min recording) — only 2 real data points so far,
+  tracked in `docs/runbooks/performance-benchmarks.md`. This is the
+  concrete evidence ADR-0009's planned GPU upgrade will eventually need
+  to act on.
 
 ## Key decisions in effect
 
@@ -187,23 +245,35 @@ confirmed correct end-to-end.
   clinical-ai-worker/.env.example`.
 - WhisperX runtime: `small` model, CPU, int8 — GPU is a planned
   upgrade, not built — `docs/adr/0009-whisperx-runtime-config-cpu-small.md`
-- Diarization: Pyannote, verified on real two-speaker audio (~60%
-  turn-level accuracy) — running on the `speaker-diarization-community-1`
-  fallback model (no ADR filed; this is the vendor architecture.md §9
-  already specifies, not a new choice).
+- Diarization: Pyannote — now running the **primary**
+  `speaker-diarization-3.1` model (gated-terms access granted
+  2026-07-06, including its `segmentation-3.0` dependency), replacing
+  the `community-1` fallback that earlier's ~60% turn-level accuracy
+  number was measured on. Re-verified against the exact same Milestone
+  6 two-speaker audio: 13/15 segments matched, 2 changed, both changes
+  correct reassignments. No ADR filed; this is the vendor
+  architecture.md §9 already specifies, not a new choice.
 - Worker calls apps/api over HTTP, not by importing NestJS use-cases —
   `docs/adr/0010-worker-http-client-not-nestjs-import.md`.
 - CMS integration: stubbed (`StubCmsIntegrationAdapter`), logs instead
   of calling a real CMS — architecture.md §17 Phase 1, no ADR needed
   (this is the standalone-phase design already specified, not a new
   choice).
+- Extraction schema: rebuilt against the real clinical form
+  (`C:\KAL-clinic-management-solution`), superseding architecture.md
+  §11's original placeholder — `docs/modules/clinical-extraction-schema.md`
+  is now the authoritative reference, no ADR needed (this corrects an
+  earlier draft to match the actual integration target, not a new
+  design choice).
 
 ## Next up
 
-- User to click through the Review UI live in a browser: record a real
-  consultation, edit fields, and accept/discard against a genuine
-  draft (the backing endpoints are already verified — this is the
-  visual/interaction layer on top).
+- User to click through the Review UI live in a browser against its
+  2026-07-06 rebuild: record a real consultation, verify the Ashtavidha/
+  Srotas/family-history/medicine-dosage-grid UI renders and edits
+  correctly, and accept/discard against a genuine draft (the backing
+  endpoints and data shape are already verified — this is the visual/
+  interaction layer on top).
 - Milestone 9 (CMS Mapping) per `docs/architecture.md` §18:
   deterministic medicine/treatment mapping (§7 stage 11),
   `match_confidence` scoring, stub `resolveMedicineMasterList`/

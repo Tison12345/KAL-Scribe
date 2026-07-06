@@ -1,0 +1,139 @@
+---
+module: clinical-extraction-schema
+last_updated: 2026-07-06
+---
+
+# Clinical Extraction Schema
+
+> Rewritten in place as the module changes — this is a *living* doc, not a
+> log. For the history of how it got this way, see `docs/log/`. For why a
+> specific choice was made, see `docs/adr/`.
+
+## Purpose
+
+Defines the exact JSON shape the LLM extraction step (architecture.md
+§7 stage 8) produces from a consultation transcript, and that the
+review UI (`ReviewDraftPanel`) edits before a doctor accepts it.
+
+## Current shape — diverges materially from architecture.md §11
+
+architecture.md §11 defines a **generic** extraction schema
+(`chiefComplaint`, `symptoms[]` with severity/pain-characteristics,
+`diagnosis.differentialMentioned`, a SOAP note, generic
+`diet.recommendations`/`restrictions`, etc.). That schema was written
+before this repo's real integration target — a specific existing
+CMS (`C:\KAL-clinic-management-solution`) — had been examined field by
+field. As of 2026-07-06, the schema actually implemented in code
+(`packages/types/src/clinical-extraction.ts`,
+`packages/validation/src/clinical-extraction.schema.ts`) was rebuilt
+from scratch against that CMS's own source, and no longer resembles
+§11's generic version. **This doc, not §11, is the source of truth for
+the extraction schema going forward.**
+
+### Where every field actually comes from
+
+Verified directly against the CMS's source, not derived from memory or
+convention:
+
+| Area | CMS source files |
+|---|---|
+| Case Sheet (complaints, personal history, vitals, gynec) | `app/components/clinical/{ConsultationTab,PresentingConcerns,PersonalHistorySection,GynecologicalHistorySection,ExaminationVitalsSection,FamilyHistorySection}.tsx` |
+| Detailed Assessment (Ashtavidha, Srotas, Prakrithi/Dosha/Agni/Ojas/Ama, diagnosis, notes) | `app/components/clinical/{AshtavidhaSection,SrotasSection,ExaminationSection,DiagnosisSection,ClinicalNotesSection}.tsx` |
+| Prescription (medicines, treatments, lab tests, diet, lifestyle, follow-up) | `app/components/clinical/{PrescriptionTab,MedicinesSection,TreatmentsSection,TherapyInstructionsFields,LabTestsSection,DietSection,LifestyleSection}.tsx` |
+| Underlying DB-level type shapes | `app/lib/types.ts` (`Consultation`, `Prescription`, `PrescriptionMedicine`, `PrescriptionTreatment`, `PersonalHistory`, `FamilyHistory`, `SrotasEntry`, `TherapyInstructions`) |
+
+### Fields deliberately excluded (verified dead in the live form, not an oversight)
+
+Present on the CMS's own TypeScript types but with **zero UI input**
+anywhere in the actual rendered form (confirmed by reading every
+section component, not just the type file):
+
+- `weightKg`, `heightFt`, `heightIn`, `sysGastrointestinal`,
+  `sysRespiratory`, `sysNervous`, `sysMusculoskeletal`,
+  `sysOtherFindings`, `sara`, `ayurvedicDiagnosis`, `examinationNotes`,
+  `observations` — legacy `Consultation` fields, no longer collected.
+- Medicine `quantity` (the number) — only `quantityUnit` has a live
+  input.
+- Treatment `notes` — no input anywhere in `TreatmentsSection.tsx`.
+- Treatment `treatmentType` (`panchakarma`|`general`) — auto-derived
+  client-side from whether the treatment name text contains
+  "panchakarma"; never a field a doctor picks directly, so not
+  something the LLM should try to extract independently either.
+- Medicine `consumptionMode` — not a stored field at all; it's a
+  formulary-lookup value that seeds `instructions` when a formulary
+  medicine is picked in `MedicinesSection.tsx`.
+
+**`emotionalMakeup` (Manasika Bhava) is a deliberate exception**: it
+*is* genuinely live in `ExaminationTab.tsx` (a real multi-select —
+Shoka/Chinta/Bhaya/Krodha/Lobha/Mada/Dvesha + Other), but is excluded
+from this schema by explicit product decision (2026-07-06), not
+because it's unused.
+
+### Corrections made vs. the original ask that started this rebuild
+
+A few details initially assumed while planning this rebuild turned out
+to be wrong once checked against the actual component code — corrected
+here rather than silently:
+
+- **Srotas Pariksha has 15 entries, not 16** — no `stanyavaha` exists
+  in `SrotasSection.tsx`'s own list. `shukravaha` and `artavavaha` are
+  gender-filtered (male-only / female-only) in the CMS UI, so only
+  ~14 apply to any one patient — this schema still models all 15 keys
+  since it doesn't know patient gender from audio alone; gender
+  filtering is left to whatever downstream mapping step actually
+  writes into the CMS.
+- **`personalHistory.menstrual` is not independently editable** —
+  `PersonalHistorySection.tsx`'s real field list is 8 fields (bowel,
+  bladder, sleep, appetite, diet, eatingOut, addiction, exercise), not
+  9. The real editable menstrual data lives under `gynec.menstrualHistory`.
+- **`temperatureUnit` is always °F** in the live form, despite the
+  type allowing `"C"|"F"` — no toggle exists in
+  `ExaminationVitalsSection.tsx`.
+- **Follow-up is `followUpValue` (number) + `followUpUnit`
+  (`days`|`weeks`|`months`)**, not a generic timeframe string.
+- Ashtavidha (8 fields) and Personal History (8 fields) each have a
+  real "Other" free-text escape hatch in the live UI — modeled as
+  plain strings with a canonical option list, not strict enums.
+  Prakrithi, Dosha, Agni, and Ojas have **no** "Other" escape hatch —
+  modeled the same way as plain strings for consistency, but the LLM
+  prompt states these are a fixed set.
+
+### Out-of-scope-but-related: Family History lives in a different tab
+
+The disease × relation matrix (`FamilyHistorySection.tsx`) actually
+renders inside the CMS's **Patient Intake** tab, not Examination or
+Prescription. Included in this schema anyway by explicit decision
+(2026-07-06) since it's real, relevant clinical data — but if the CMS
+adds more Patient-Intake-only fields later (presenting concern
+duration, past illnesses, allergies, supplemental medicines), those
+are a separate follow-up, not assumed to be in scope here.
+
+## Interfaces / contracts it exposes or depends on
+
+- `ClinicalExtraction` (`packages/types`) / `clinicalExtractionSchema`
+  (`packages/validation`) — the canonical shape, validated at the LLM
+  output boundary (`packages/llm-client`) and the `apps/api` persistence
+  boundary (same schema, one source of truth).
+- `packages/llm-client/src/prompt.ts` — encodes every field, every
+  canonical option list, and the "physical-exam findings only if
+  stated aloud" rule as plain-English instructions to the LLM.
+- `apps/web/src/features/clinical-ai/components/ReviewDraftPanel.tsx`
+  — the doctor-facing editor for this exact shape.
+- `medicines[].matchConfidence` is reserved for Milestone 9's
+  deterministic medicine-master-list mapping step — the LLM always
+  leaves it `null`.
+
+## Open questions / known gaps
+
+- The deterministic mapping step (architecture.md §7 stage 11,
+  Milestone 9) that would resolve `medicines[].medicineName` /
+  `treatments[].treatmentName` against the CMS's actual formulary and
+  treatment-type master lists doesn't exist yet — this schema is
+  shaped to make that mapping mechanical later, but the mapping itself
+  is unbuilt.
+- Gender-based srotas filtering (`shukravaha`/`artavavaha`) isn't
+  applied anywhere in this repo — deferred to whatever eventually
+  writes extraction data into the real CMS's `Consultation` row.
+  `emotionalMakeup`'s exclusion and the Family-History-from-a-different-tab
+  inclusion were both explicit product decisions on 2026-07-06 — worth
+  revisiting if the CMS's live form changes again.

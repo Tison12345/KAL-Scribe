@@ -87,15 +87,17 @@ export function PipelineProgressTracker({
   timing,
 }: PipelineProgressTrackerProps) {
   if (stage === "ready") {
+    // Always show all four labels — a missing one (e.g. no upload/
+    // transcription job because a transcript was injected directly
+    // for testing, skipping the normal record→upload→transcribe flow)
+    // should read as "no data for this stage," not silently vanish
+    // and look like the summary itself is incomplete.
     const parts = [
-      timing.uploadMs !== null && `Upload: ${formatDuration(timing.uploadMs)}`,
-      timing.transcriptionMs !== null &&
-        `Transcription & diarization: ${formatDuration(timing.transcriptionMs)}`,
-      timing.extractionMs !== null && `Extraction: ${formatDuration(timing.extractionMs)}`,
-      timing.totalMs !== null && `Total: ${formatDuration(timing.totalMs)}`,
-    ].filter(Boolean);
-
-    if (parts.length === 0) return null;
+      `Upload: ${timing.uploadMs !== null ? formatDuration(timing.uploadMs) : "—"}`,
+      `Transcription & diarization: ${timing.transcriptionMs !== null ? formatDuration(timing.transcriptionMs) : "—"}`,
+      `Extraction: ${timing.extractionMs !== null ? formatDuration(timing.extractionMs) : "—"}`,
+      `Total: ${timing.totalMs !== null ? formatDuration(timing.totalMs) : "—"}`,
+    ];
 
     return (
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl bg-[var(--color-surface-container-low)] px-5 py-3 text-[11px] font-medium text-[var(--color-on-surface-variant)]">

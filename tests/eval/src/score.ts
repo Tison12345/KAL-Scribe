@@ -18,9 +18,10 @@ function anyItemMatches(items: string[], keyword: string): boolean {
 }
 
 /** Scores one extraction against one fixture's hand-labeled
- * expectations. Each check is pass/fail and independently reported —
- * the point is a readable before/after over time (architecture.md
- * §18, §20 principle 7), not a single opaque percentage. */
+ * expectations, against the REAL clinical form schema. Each check is
+ * pass/fail and independently reported — the point is a readable
+ * before/after over time (architecture.md §18, §20 principle 7), not
+ * a single opaque percentage. */
 export function scoreExtraction(
   extraction: ClinicalExtraction,
   expected: EvalExpectation,
@@ -28,93 +29,93 @@ export function scoreExtraction(
   const checks: CheckResult[] = [];
 
   checks.push({
-    name: "chiefComplaint mentions expected keywords",
-    passed: containsAny(extraction.chiefComplaint.text, expected.chiefComplaint.requiredKeywords),
-    detail: `got: "${extraction.chiefComplaint.text}"`,
+    name: "complaints mentions expected keywords",
+    passed: expected.complaints.requiredKeywords.every((kw) => anyItemMatches(extraction.complaints, kw)),
+    detail: `got: [${extraction.complaints.join(", ")}]`,
   });
 
-  const diagnosisText = extraction.diagnosis.stated;
+  const diagnosisText = extraction.modernDiagnosis;
   const diagnosisOk = diagnosisText === null
-    ? expected.diagnosis.acceptNull
-    : containsAny(diagnosisText, expected.diagnosis.acceptableSubstrings) &&
-      !containsAny(diagnosisText, expected.diagnosis.forbiddenSubstrings);
+    ? expected.modernDiagnosis.acceptNull
+    : containsAny(diagnosisText, expected.modernDiagnosis.acceptableSubstrings) &&
+      !containsAny(diagnosisText, expected.modernDiagnosis.forbiddenSubstrings);
   checks.push({
-    name: "diagnosis.stated is null or an acceptable stated diagnosis (never a fabricated one)",
+    name: "modernDiagnosis is null or an acceptable stated diagnosis (never fabricated)",
     passed: diagnosisOk,
     detail: `got: ${diagnosisText === null ? "null" : `"${diagnosisText}"`}`,
   });
 
-  const medicineNames = extraction.medicinesMentioned.map((m) => m.name);
-  for (const expectedName of expected.medicinesMentioned.expectedNames) {
+  const medicineNames = extraction.medicines.map((m) => m.medicineName);
+  for (const keyword of expected.medicines.expectedNameKeywords) {
     checks.push({
-      name: `medicinesMentioned includes "${expectedName}"`,
-      passed: anyItemMatches(medicineNames, expectedName),
+      name: `medicines includes "${keyword}"`,
+      passed: anyItemMatches(medicineNames, keyword),
       detail: `got: [${medicineNames.join(", ")}]`,
     });
   }
   checks.push({
-    name: "medicinesMentioned[].matchConfidence left null by the LLM (deterministic step fills it later)",
-    passed: extraction.medicinesMentioned.every((m) => m.matchConfidence === null),
-    detail: `got: [${extraction.medicinesMentioned.map((m) => m.matchConfidence).join(", ")}]`,
+    name: "medicines[].matchConfidence left null by the LLM (deterministic step fills it later)",
+    passed: extraction.medicines.every((m) => m.matchConfidence === null),
+    detail: `got: [${extraction.medicines.map((m) => m.matchConfidence).join(", ")}]`,
   });
 
-  const treatmentNames = extraction.treatmentsMentioned.map((t) => t.name);
-  const anyTreatmentMatched = expected.treatmentsMentioned.expectedNames.some((name) =>
-    anyItemMatches(treatmentNames, name),
-  );
+  const treatmentNames = extraction.treatments.map((t) => t.treatmentName);
   checks.push({
-    name: "treatmentsMentioned includes the recommended massage",
-    passed: anyTreatmentMatched,
+    name: "treatments includes the recommended massage",
+    passed: expected.treatments.expectedNameKeywords.some((kw) => anyItemMatches(treatmentNames, kw)),
     detail: `got: [${treatmentNames.join(", ")}]`,
   });
 
-  for (const keyword of expected.diet.expectedRestrictionKeywords) {
+  for (const keyword of expected.dietAvoid.expectedKeywords) {
     checks.push({
-      name: `diet.restrictions mentions "${keyword}"`,
-      passed: anyItemMatches(extraction.diet.restrictions, keyword),
-      detail: `got: [${extraction.diet.restrictions.join(", ")}]`,
+      name: `dietAvoid mentions "${keyword}"`,
+      passed: anyItemMatches(extraction.dietAvoid, keyword),
+      detail: `got: [${extraction.dietAvoid.join(", ")}]`,
     });
   }
-  for (const keyword of expected.diet.expectedRecommendationKeywords) {
+  for (const keyword of expected.dietEat.expectedKeywords) {
     checks.push({
-      name: `diet.recommendations mentions "${keyword}"`,
-      passed: anyItemMatches(extraction.diet.recommendations, keyword),
-      detail: `got: [${extraction.diet.recommendations.join(", ")}]`,
+      name: `dietEat mentions "${keyword}"`,
+      passed: anyItemMatches(extraction.dietEat, keyword),
+      detail: `got: [${extraction.dietEat.join(", ")}]`,
+    });
+  }
+  for (const keyword of expected.lifestyleMaintain.expectedKeywords) {
+    checks.push({
+      name: `lifestyleMaintain mentions "${keyword}"`,
+      passed: anyItemMatches(extraction.lifestyleMaintain, keyword),
+      detail: `got: [${extraction.lifestyleMaintain.join(", ")}]`,
     });
   }
 
   checks.push({
-    name: "lifestyle.sleep.mentioned",
-    passed: extraction.lifestyle.sleep.mentioned === expected.lifestyle.sleepMentionedExpected,
-    detail: `got: ${extraction.lifestyle.sleep.mentioned}`,
-  });
-  checks.push({
-    name: "lifestyle.activityRecommendations mentions walking",
-    passed: expected.lifestyle.activityExpectedKeywords.some((keyword) =>
-      anyItemMatches(extraction.lifestyle.activityRecommendations, keyword),
-    ),
-    detail: `got: [${extraction.lifestyle.activityRecommendations.join(", ")}]`,
+    name: "followUpValue/Unit matches the stated follow-up",
+    passed: extraction.followUpValue === expected.followUp.expectedValue &&
+      extraction.followUpUnit === expected.followUp.expectedUnit,
+    detail: `got: ${extraction.followUpValue} ${extraction.followUpUnit}`,
   });
 
+  const familyRelations = extraction.familyHistory?.[expected.familyHistory.expectedDisease] ?? [];
   checks.push({
-    name: "followUp.recommended",
-    passed: extraction.followUp.recommended === expected.followUp.recommendedExpected,
-    detail: `got: ${extraction.followUp.recommended}`,
-  });
-  checks.push({
-    name: "followUp.timeframe mentions two weeks",
-    passed: extraction.followUp.timeframe !== null &&
-      containsAny(extraction.followUp.timeframe, expected.followUp.timeframeKeywords),
-    detail: `got: ${extraction.followUp.timeframe === null ? "null" : `"${extraction.followUp.timeframe}"`}`,
+    name: `familyHistory["${expected.familyHistory.expectedDisease}"] includes "${expected.familyHistory.expectedRelationKeyword}"`,
+    passed: anyItemMatches(familyRelations, expected.familyHistory.expectedRelationKeyword),
+    detail: `got: ${JSON.stringify(extraction.familyHistory)}`,
   });
 
-  checks.push({
-    name: "history.familyHistoryMentioned captures the mother's arthritis, attributed correctly",
-    passed: expected.history.familyHistoryExpectedKeywords.some((keyword) =>
-      anyItemMatches(extraction.history.familyHistoryMentioned, keyword),
-    ),
-    detail: `got: [${extraction.history.familyHistoryMentioned.join(", ")}]`,
-  });
+  if (expected.examFindingsShouldBeEmpty) {
+    const ashtavidhaAllNull = Object.values(extraction.ashtavidhaPariksha).every((v) => v === null);
+    const srotasEmpty = Object.keys(extraction.srotasPariksha).length === 0;
+    const finalAssessmentAllNull =
+      extraction.prakrithi === null &&
+      extraction.dosha === null &&
+      extraction.agni === null &&
+      extraction.ojas === null;
+    checks.push({
+      name: "no physical-examination findings hallucinated (none were stated aloud in this transcript)",
+      passed: ashtavidhaAllNull && srotasEmpty && finalAssessmentAllNull,
+      detail: `ashtavidha: ${JSON.stringify(extraction.ashtavidhaPariksha)}, srotas keys: [${Object.keys(extraction.srotasPariksha).join(", ")}], prakrithi/dosha/agni/ojas: ${extraction.prakrithi}/${extraction.dosha}/${extraction.agni}/${extraction.ojas}`,
+    });
+  }
 
   return checks;
 }

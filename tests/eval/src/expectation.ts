@@ -1,31 +1,27 @@
-/** Ground-truth shape for one eval fixture. Deliberately not
- * ClinicalExtraction itself — free-text fields (chiefComplaint.text,
- * soap.*) can't be scored by exact string equality against an LLM's
- * output, so expectations are keyword/substring checks instead, which
- * is an honest way to score free text rather than pretending
- * exact-match works (see tests/eval/README or the Milestone 7 log
- * entry for the reasoning). */
+/** Ground-truth shape for one eval fixture, against the REAL clinical
+ * form schema (packages/types/src/clinical-extraction.ts). Free-text
+ * fields are scored by keyword/substring checks rather than exact
+ * string equality — an honest way to score free text without
+ * pretending exact-match works. */
 export interface EvalExpectation {
   description: string;
-  chiefComplaint: { requiredKeywords: string[] };
-  diagnosis: {
+  complaints: { requiredKeywords: string[] };
+  modernDiagnosis: {
     acceptNull: boolean;
     acceptableSubstrings: string[];
     forbiddenSubstrings: string[];
   };
-  medicinesMentioned: { expectedNames: string[] };
-  treatmentsMentioned: { expectedNames: string[] };
-  diet: {
-    expectedRestrictionKeywords: string[];
-    expectedRecommendationKeywords: string[];
-  };
-  lifestyle: {
-    sleepMentionedExpected: boolean;
-    activityExpectedKeywords: string[];
-  };
-  followUp: {
-    recommendedExpected: boolean;
-    timeframeKeywords: string[];
-  };
-  history: { familyHistoryExpectedKeywords: string[] };
+  medicines: { expectedNameKeywords: string[] };
+  treatments: { expectedNameKeywords: string[] };
+  dietAvoid: { expectedKeywords: string[] };
+  dietEat: { expectedKeywords: string[] };
+  lifestyleMaintain: { expectedKeywords: string[] };
+  followUp: { expectedValue: number; expectedUnit: string };
+  familyHistory: { expectedDisease: string; expectedRelationKeyword: string };
+  /** No physical-examination finding (Ashtavidha, Srotas, Prakrithi,
+   * Dosha, Agni, Ojas) was ever stated aloud in this fixture's
+   * transcript — this checks the LLM didn't hallucinate any of them
+   * from context, the exact failure mode the extraction prompt's
+   * "only fill if the doctor states it aloud" rule exists to prevent. */
+  examFindingsShouldBeEmpty: boolean;
 }
