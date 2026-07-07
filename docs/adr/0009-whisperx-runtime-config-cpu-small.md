@@ -1,7 +1,8 @@
 # ADR-0009: WhisperX runtime config — small model, CPU, int8 (GPU is a planned upgrade)
 
-- Status: accepted for MVP — GPU is an explicit, planned future change,
-  not a rejected option
+- Status: superseded by ADR-0012 (2026-07-07) — GPU is now the active
+  config on machines with a usable GPU; this ADR's CPU/int8 config
+  remains the fallback for machines without one.
 - Date: 2026-07-05
 - Context: ADR-0001 already chose WhisperX as the STT provider.
   Milestone 5 needed to pick an actual runtime configuration — model

@@ -44,7 +44,7 @@ function createRedisConnection(redisUrl: string): IORedis {
 async function processTranscriptionJob(
   job: Job<TranscriptionJobPayload>,
 ): Promise<void> {
-  const { recordingId } = job.data;
+  const { recordingId, sttDevice } = job.data;
 
   // Idempotency guard (same reasoning as CompleteUploadUseCase): a
   // retry can fire after the real work already succeeded — e.g. this
@@ -72,7 +72,12 @@ async function processTranscriptionJob(
     console.log(
       `[clinical-ai-worker] transcribing recording ${recordingId} (${audio.length} bytes)...`,
     );
-    const result = await processAudio(env.ASR_SERVICE_URL, audio, path.basename(audioPath));
+    const result = await processAudio(
+      env.ASR_SERVICE_URL,
+      audio,
+      path.basename(audioPath),
+      sttDevice,
+    );
 
     console.log(
       `[clinical-ai-worker] transcript for recording ${recordingId}:\n` +

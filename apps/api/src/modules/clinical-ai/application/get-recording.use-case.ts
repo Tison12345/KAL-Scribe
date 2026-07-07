@@ -25,6 +25,7 @@ export class GetRecordingUseCase {
       durationSeconds: row.durationSeconds,
       consentConfirmed: row.consentConfirmed,
       consentConfirmedAt: row.consentConfirmedAt?.toISOString() ?? null,
+      sttDevice: row.sttDevice,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

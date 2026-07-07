@@ -11,7 +11,7 @@ import os
 import sys
 
 
-def load_diarization_pipeline():
+def load_diarization_pipeline(device: str = "cpu"):
     hf_token = os.environ.get("HF_TOKEN")
     if not hf_token:
         return None
@@ -23,7 +23,7 @@ def load_diarization_pipeline():
         "pyannote/speaker-diarization-community-1",
     ]:
         try:
-            return DiarizationPipeline(model_name=model_name, token=hf_token, device="cpu")
+            return DiarizationPipeline(model_name=model_name, token=hf_token, device=device)
         except Exception as exc:
             sys.stderr.write(f"Diarization model {model_name} unavailable: {exc}\n")
             continue

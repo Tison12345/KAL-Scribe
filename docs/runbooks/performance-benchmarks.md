@@ -16,6 +16,7 @@ PROJECT_STATUS.md).
 |---|---|---|---|---|---|---|
 | 2026-07-05 | 8s | 16s | 14s | 2s | 31s | Short test clip (spoken numbers), uploaded from a pre-recorded file via curl (not a live recording — upload time here reflects script overhead, not real recording pace) |
 | 2026-07-05 | ~126s (~2m6s) | 2m9s | 4m9s | 4s | 6m23s | Real ~2-minute fake Ayurvedic consultation dialogue, recorded live through the browser (upload time here roughly tracks how long the doctor was actually speaking, since chunks upload as they're captured — not a pure network/upload-speed number) |
+| 2026-07-07 | 431s (~7m11s) | 7m13s | 4m35s | 5s | ~11m53s | Real ~7-minute consultation, recorded live through the browser. First 3 attempts failed at exactly ~300s into transcription — traced to an undici `headersTimeout` bug (docs/log/2026-07-07-headers-timeout-bug-fix.md), not a real processing-time data point; the 4m35s figure is the clean run after the fix. Also surfaced a real WhisperX limitation: the final ~8s of audio produced zero transcript text despite pyannote detecting continued voice activity there — confirmed via isolated re-transcription, not a pipeline bug. |
 
 ## Rough extrapolation (2 data points — treat as order-of-magnitude, not a formula)
 

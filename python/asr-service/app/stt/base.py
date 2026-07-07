@@ -22,10 +22,17 @@ class SttResult:
 
 class SttProvider(ABC):
     @abstractmethod
-    def transcribe(self, audio_path: str, language: str | None = None) -> SttResult:
+    def transcribe(
+        self,
+        audio_path: str,
+        language: str | None = None,
+        device: str | None = None,
+    ) -> SttResult:
         """Returns timestamped segments plus, if diarization is
         configured (architecture.md §9), speaker turns and real
         speaker labels on each segment. Without diarization, every
         segment is a single placeholder speaker and speaker_turns is
-        empty — never an error."""
+        empty — never an error. `device` (docs/adr/0012) is a
+        provider-native device string (e.g. "cpu"/"cuda" for WhisperX);
+        None defers to the provider's own default."""
         raise NotImplementedError

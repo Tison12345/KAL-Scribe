@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Agent, fetch as undiciFetch, FormData as UndiciFormData } from "undici";
 import type {
   ConsultationTranscript,
   CreateExtractionResultRequest,
@@ -9,6 +10,7 @@ import type {
   CreateTranscriptRequest,
   CreateTranscriptResponse,
   ProcessAudioResponse,
+  SttDevice,
 } from "@kal-scribe/types";
 
 /**
@@ -219,34 +221,55 @@ export function persistExtractionResult(
 // python/asr-service
 // ---------------------------------------------------------------------------
 
-// Node's default fetch (undici) agent times out a request at 300s
-// (headers+body) — fine for the few-second test clips used so far,
-// but a real multi-minute consultation on CPU-only WhisperX+Pyannote
-// (docs/adr/0009) can genuinely take longer than that to transcribe
-// and diarize. Without an explicit, longer timeout, the client gives
-// up and BullMQ retries while python/asr-service — which has no idea
-// the client disconnected — keeps computing the abandoned request in
-// the background, piling up CPU/memory across retries instead of
-// cleanly failing or succeeding once.
+// Node's default fetch (undici) agent has its own headersTimeout/
+// bodyTimeout of 300s, tracked independently of any AbortSignal passed
+// to `fetch()` — an AbortSignal only stops the request early, it
+// cannot raise undici's built-in connection-level timeouts. A real
+// multi-minute consultation on CPU-only WhisperX+Pyannote (docs/adr/
+// 0009) blocks python/asr-service's single event loop for the entire
+// transcribe+diarize duration before it can send any response bytes,
+// so any recording whose processing exceeds 300s hits
+// UND_ERR_HEADERS_TIMEOUT regardless of AbortSignal — confirmed via a
+// direct reproduction (docs/log/2026-07-07-headers-timeout-bug-fix.md).
+// Both timeouts must be raised on a dedicated Agent (the global fetch
+// has no way to configure this); once the client actually waits long
+// enough for a response, python/asr-service — which has no idea the
+// client disconnected — no longer piles up abandoned CPU/memory work
+// across retries.
 const ASR_SERVICE_TIMEOUT_MS = 20 * 60 * 1000;
+const asrServiceAgent = new Agent({
+  headersTimeout: ASR_SERVICE_TIMEOUT_MS,
+  bodyTimeout: ASR_SERVICE_TIMEOUT_MS,
+});
 
-/** Calls python/asr-service (architecture.md §3.2, §8). */
+/** Calls python/asr-service (architecture.md §3.2, §8). `device`
+ * (docs/adr/0012) is forwarded as-is ("cpu"/"gpu") — asr-service maps
+ * "gpu" to torch's "cuda" internally; omitted defers to its own
+ * `STT_DEVICE` default. */
 export async function processAudio(
   asrServiceUrl: string,
   audio: Buffer,
   filename: string,
+  device?: SttDevice,
 ): Promise<ProcessAudioResponse> {
-  const formData = new FormData();
+  // undici's own FormData/fetch (not the global lib.dom ones) — the
+  // global fetch has no way to attach a custom Agent, and undici's
+  // fetch type only accepts its own FormData as a BodyInit.
+  const formData = new UndiciFormData();
   // new Uint8Array(audio) (not `audio` directly) guarantees a plain
   // ArrayBuffer backing, not the ArrayBuffer|SharedArrayBuffer union
   // Node's Buffer type carries — Blob's constructor type requires the
   // former.
   formData.append("file", new Blob([new Uint8Array(audio)]), filename);
+  if (device) {
+    formData.append("device", device);
+  }
 
-  const res = await fetch(`${asrServiceUrl}/v1/process-audio`, {
+  const res = await undiciFetch(`${asrServiceUrl}/v1/process-audio`, {
     method: "POST",
     body: formData,
     signal: AbortSignal.timeout(ASR_SERVICE_TIMEOUT_MS),
+    dispatcher: asrServiceAgent,
   });
 
   if (!res.ok) {

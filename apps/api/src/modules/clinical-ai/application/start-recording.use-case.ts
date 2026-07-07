@@ -23,6 +23,7 @@ export class StartRecordingUseCase {
       status: 'recording',
       consentConfirmed: true,
       consentConfirmedAt: new Date(),
+      sttDevice: request.sttDevice ?? null,
     });
 
     return { recordingId: row.id, status: row.status };

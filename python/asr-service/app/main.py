@@ -8,7 +8,7 @@ import os
 import tempfile
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, Form, HTTPException, UploadFile
 
 # Must run before any os.environ.get() below (STT_PROVIDER here;
 # whisperx_provider.py / pyannote_provider.py read their own vars at
@@ -44,11 +44,31 @@ def health() -> dict:
     return {"status": "ok", "stt_provider": STT_PROVIDER}
 
 
+# Public API vocabulary ("cpu"/"gpu", matching the frontend toggle and
+# docs/adr/0012) mapped to whisperx/torch's own device strings — kept
+# here, not in whisperx_provider.py, so that module never has to know
+# about the public naming.
+DEVICE_ALIASES = {"cpu": "cpu", "gpu": "cuda"}
+
+
 @app.post("/v1/process-audio", response_model=ProcessAudioResponse)
-async def process_audio(file: UploadFile, language: str | None = None) -> ProcessAudioResponse:
+async def process_audio(
+    file: UploadFile,
+    language: str | None = None,
+    device: str | None = Form(None),
+) -> ProcessAudioResponse:
     provider = state.get("provider")
     if provider is None:
         raise HTTPException(status_code=503, detail="STT provider not loaded yet.")
+
+    torch_device = None
+    if device is not None:
+        torch_device = DEVICE_ALIASES.get(device)
+        if torch_device is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f'Unknown device "{device}" — expected "cpu" or "gpu".',
+            )
 
     suffix = os.path.splitext(file.filename or "")[1] or ".webm"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -56,7 +76,7 @@ async def process_audio(file: UploadFile, language: str | None = None) -> Proces
         tmp_path = tmp.name
 
     try:
-        result = provider.transcribe(tmp_path, language=language)
+        result = provider.transcribe(tmp_path, language=language, device=torch_device)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
     finally:

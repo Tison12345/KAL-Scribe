@@ -1,6 +1,7 @@
 export type {
   ConsultationRecording,
   ConsultationRecordingStatus,
+  SttDevice,
   StartRecordingRequest,
   StartRecordingResponse,
   RequestChunkUploadRequest,

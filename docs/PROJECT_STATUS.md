@@ -165,12 +165,31 @@ one rule yet, a documented open item, not a code bug).
   `@typescript-eslint/no-unsafe-*` errors. Reordered to build first;
   verified `pnpm build && pnpm lint` passes clean workspace-wide. See
   `docs/log/2026-07-06-ci-lint-before-build-ordering-fix.md`.
-- **`asr-service` has no request-cancellation mechanism** — a
-  20-minute timeout (fixed today) makes premature retries far less
-  likely, but if a request is genuinely abandoned (timeout, worker
-  crash), the Python-side computation still runs to completion
-  wastefully rather than being cancelled. Real fix would need
-  WhisperX's blocking call running in a cancellable executor wired to
+- **Headers-timeout bug fixed (2026-07-07)**: the Milestone 8
+  20-minute `AbortSignal` timeout on the worker's asr-service call
+  never actually worked for a real multi-minute consultation — undici's
+  own `headersTimeout`/`bodyTimeout` (300s default, independent of any
+  `AbortSignal`) killed the connection first every time. Reproduced
+  directly (`UND_ERR_HEADERS_TIMEOUT` at 304s) and fixed by dispatching
+  through a dedicated undici `Agent` with both raised to 20 minutes.
+  Verified against a real ~7-minute recording: transcription completed
+  in 4m36s, extraction in 5s, full draft persisted. See
+  `docs/log/2026-07-07-headers-timeout-bug-fix.md`.
+- **WhisperX silently dropped the final ~8s of that same real recording**
+  — the transcript's last segment ended at 421s against 430s of actual
+  audio. Isolated the missing tail and re-ran it directly against
+  asr-service: pyannote diarization still detected 7 speaker turns of
+  voice activity in that window, but Whisper produced zero transcript
+  segments for it even in isolation — not a pipeline bug, a genuine STT
+  decode failure on that stretch of audio (too quiet/trailing/unclear).
+  Same class of issue as the "Triphala" mishearing below: the review UI
+  is the safety net for exactly this.
+- **`asr-service` has no request-cancellation mechanism** — the
+  20-minute timeout (now genuinely working, see above) makes premature
+  retries far less likely, but if a request is genuinely abandoned
+  (timeout, worker crash), the Python-side computation still runs to
+  completion wastefully rather than being cancelled. Real fix would
+  need WhisperX's blocking call running in a cancellable executor wired to
   the request's disconnect — bigger change, not done.
 - **STT accuracy on Ayurvedic-specific medicine names is unverified
   beyond one example** — WhisperX mis-heard "Triphala and Avipattikar
@@ -227,11 +246,21 @@ one rule yet, a documented open item, not a code bug).
   (e.g. ~4m for a ~2min recording) — only 2 real data points so far,
   tracked in `docs/runbooks/performance-benchmarks.md`. This is the
   concrete evidence ADR-0009's planned GPU upgrade will eventually need
-  to act on.
+  to act on. **Update (2026-07-07): GPU upgrade tested, ~6.1x faster**
+  — see Key decisions below.
 
 ## Key decisions in effect
 
 - STT provider: WhisperX — `docs/adr/0001-stt-provider-whisperx.md`
+- WhisperX runtime: **now GPU (CUDA, float16)** on this machine (RTX
+  4050) — same 7-minute recording went from 4m35s (CPU) to 45s (GPU),
+  a ~6.1x speedup, comfortably clearing architecture.md §13's "draft
+  in under a minute" target — `docs/adr/0012-whisperx-gpu-cuda-float16.md`,
+  `docs/log/2026-07-07-gpu-speed-test.md`. Supersedes the CPU/int8
+  config in `docs/adr/0009-whisperx-runtime-config-cpu-small.md`
+  (kept as the fallback for machines without a GPU). Production
+  hosting (self-host GPU vs. hosted GPU/serverless vs. hosted STT API)
+  is still an open question — this only validates local speed.
 - LLM provider (MVP extraction): Groq-hosted Llama, verified working —
   `docs/adr/0002-llm-provider-groq-mvp.md`,
   `docs/adr/0011-llm-extraction-implementation-choices.md`
@@ -250,8 +279,6 @@ one rule yet, a documented open item, not a code bug).
 - Redis: real hosted Upstash instance (no local stand-in exists for
   BullMQ) — see `apps/api/.env.example` / `workers/
   clinical-ai-worker/.env.example`.
-- WhisperX runtime: `small` model, CPU, int8 — GPU is a planned
-  upgrade, not built — `docs/adr/0009-whisperx-runtime-config-cpu-small.md`
 - Diarization: Pyannote — now running the **primary**
   `speaker-diarization-3.1` model (gated-terms access granted
   2026-07-06, including its `segmentation-3.0` dependency), replacing

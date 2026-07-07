@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { SttDevice } from "@kal-scribe/types";
 import type { AudioChunk } from "./useAudioRecorder";
 import {
   completeUpload,
@@ -28,6 +29,7 @@ export type UploadSessionStatus =
 export interface BeginUploadSessionParams {
   consultationSessionRef: string;
   doctorIdRef: string;
+  sttDevice?: SttDevice;
 }
 
 export interface UseUploadSessionResult {
@@ -108,7 +110,11 @@ export function useUploadSession(chunks: AudioChunk[]): UseUploadSessionResult {
   }, [chunks, recordingId, uploadOneChunk]);
 
   const begin = useCallback(
-    async ({ consultationSessionRef, doctorIdRef }: BeginUploadSessionParams) => {
+    async ({
+      consultationSessionRef,
+      doctorIdRef,
+      sttDevice,
+    }: BeginUploadSessionParams) => {
       setStatus("starting");
       setError(null);
       try {
@@ -116,6 +122,7 @@ export function useUploadSession(chunks: AudioChunk[]): UseUploadSessionResult {
           consultationSessionRef,
           doctorIdRef,
           consentConfirmed: true,
+          sttDevice,
         });
         recordingIdRef.current = response.recordingId;
         setRecordingId(response.recordingId);

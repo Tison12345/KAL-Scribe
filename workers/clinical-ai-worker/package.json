@@ -16,7 +16,8 @@
     "@kal-scribe/types": "workspace:*",
     "bullmq": "^5.79.2",
     "dotenv": "^17.4.2",
-    "ioredis": "5.10.1"
+    "ioredis": "5.10.1",
+    "undici": "^8.7.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

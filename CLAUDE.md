@@ -31,6 +31,10 @@ anything that changes what the repo does or how it's built):
 4. If the task involved a non-obvious decision (choosing between two
    approaches, picking a vendor, deviating from `docs/architecture.md`),
    write it up as a new file in `docs/adr/` using `docs/adr/adr-template.md`.
+5. If any of the above added a new file to `docs/`, add one line for it
+   to `docs/INDEX.md` (the "record of records" — a one-line-per-file map
+   of every doc in the repo). Existing files being updated in place
+   (`PROJECT_STATUS.md`, a `modules/` file, etc.) don't need a new line.
 
 **This applies automatically, without being asked.** The user may also
 explicitly say "update the docs" at any point mid-task — do that

@@ -1,5 +1,12 @@
 # Documentation
 
+See [`INDEX.md`](INDEX.md) for a one-line-per-file map of every doc in
+this repo — a "record of records" so a new reader (human or AI) can
+find the right file without opening all of them. This file explains
+the *categories and rules*; `INDEX.md` is the actual catalog. **Add a
+line to `INDEX.md` whenever you add a new doc file anywhere in the
+repo** — same "after every task" discipline as `PROJECT_STATUS.md`.
+
 Four kinds of doc, each with its own rule for when it changes:
 
 | File/folder | Updated | Purpose |

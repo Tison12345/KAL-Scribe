@@ -1,3 +1,5 @@
+import type { SttDevice } from "./consultation-recording.js";
+
 /** Mirrors architecture.md §12's `consultation_ai_jobs` table. */
 export type ClinicalAiJobType = "transcription" | "diarization" | "extraction";
 
@@ -26,6 +28,7 @@ export interface ConsultationAiJob {
 export interface TranscriptionJobPayload {
   recordingId: string;
   storageKey: string;
+  sttDevice?: SttDevice;
 }
 
 /** Payload enqueued onto the extraction queue once a transcript is
