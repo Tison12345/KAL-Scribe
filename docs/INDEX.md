@@ -85,6 +85,7 @@ to an old one.
 Rewritten in place, not appended — for history of *how* a module got
 to its current shape, see the log entries above instead.
 
+- [`clinical-ai-pipeline.md`](modules/clinical-ai-pipeline.md) — detailed, current-state technical walkthrough: tech stack, chunking mechanics, upload, worker stitching, transcription, LLM extraction, review/accept — the accurate replacement for architecture.md §3/§7/§8/§9's pre-build design
 - [`clinical-extraction-schema.md`](modules/clinical-extraction-schema.md) — the `ClinicalExtraction` schema's field-by-field derivation from the real CMS form
 - [`_template.md`](modules/_template.md) — shape to copy for a new module doc
 - [`README.md`](modules/README.md) — rules for this folder

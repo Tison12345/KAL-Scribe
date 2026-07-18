@@ -1,6 +1,15 @@
 # Clinical AI Module — Architecture & Development Blueprint
 
-**Status:** Planning document — no code, no scaffolding. This is the reference to build against.
+**Status:** Original planning document, written before any code
+existed. Kept as the source of truth for structure/conventions and
+updated in place where a real decision has materially diverged (see
+the "Materially updated" / "Superseded" callouts throughout — §3, §7,
+§8, §9, §11, §12, §13 all have one). For the current, accurate,
+detailed description of how the pipeline actually runs today —
+chunking mechanics, exactly how transcription and extraction work,
+end-to-end flow — see **`docs/modules/clinical-ai-pipeline.md`**
+instead of trying to reconstruct it from this document's original
+design intent.
 **Target repo name:** `kal-scribe`
 **Author context:** Kerala Ayurveda CMS engineering. Repo A = current production CMS (Next.js/Supabase). Repo B (`C:\KAL_CMS`) = future-architecture CMS (Next.js 16 + NestJS 11 + Postgres + Drizzle + BullMQ + Redis, pnpm workspace, modular monolith, Clean Architecture / DDD-inspired). This document was written after inspecting Repo B's actual source tree, not just its stack description, so folder names, file-naming conventions, and infra choices below are traced to real files in Repo B (cited inline as `repo B: <path>`).
 
@@ -69,6 +78,14 @@ Short version (full detail in §17): this repo ships a `clinical-ai` NestJS modu
 ---
 
 ## 3. Overall Architecture
+
+> **Diagram/topology below is the original pre-build design.** The
+> deployed default today: Gemini replaces the WhisperX+Pyannote/queue
+> boundary shown below for both STT and diarization in one call
+> (ADR-0013), Redis/BullMQ is pg-boss (ADR-0015), and object storage
+> is Supabase (ADR-0014) rather than a generic "S3-compatible" choice.
+> See `docs/modules/clinical-ai-pipeline.md` for the current, accurate
+> flow diagram and stage-by-stage detail.
 
 ### 3.1 System context
 
@@ -310,6 +327,18 @@ Any place this module's UI genuinely needs something the existing guidelines don
 
 ## 7. AI Pipeline
 
+> **Superseded by the actual implementation — see
+> `docs/modules/clinical-ai-pipeline.md` for the current, accurate
+> stage-by-stage walkthrough**, including real chunking mechanics (15s
+> browser-side segments, why `MediaRecorder`'s `timeslice` mode isn't
+> used, ffmpeg stream-copy stitching, the "stop on first 404" chunk-
+> count mechanism) and exactly how the LLM extraction call works
+> (prompt rules, schema validation/retry, confidence). The stages
+> below describe the original two-LLM-pass, WhisperX+Pyannote design;
+> the deployed default today is Gemini doing STT+diarization in one
+> audio-native call (stage 5–6 below collapse into one), and a single
+> extraction call (stage 8–9 below are one call, not two) — ADR-0013.
+
 ```mermaid
 flowchart LR
     A[Audio Recording\nclient-side chunks] --> B[Upload\nresumable]
@@ -346,6 +375,13 @@ flowchart LR
 
 ## 8. Speech-to-Text Evaluation
 
+> **Historical evaluation — kept for the reasoning, but Gemini has
+> since become the deployed default** for speech understanding
+> (ADR-0013), evaluated after this table was written. WhisperX
+> (`python/asr-service`) remains as an alternate path when
+> `SPEECH_PROVIDER` is unset. See `docs/modules/clinical-ai-pipeline.md`
+> §4 for how the current default actually works.
+
 | | Google Speech-to-Text | Whisper (self/API-hosted) | WhisperX |
 |---|---|---|---|
 | **Accuracy (clinical speech, code-switched IN-en)** | Good on clean English; weaker on Indian-accented and code-switched audio unless a custom model/phrase-hints are configured | Strong general accuracy, notably better on accented and code-switched speech than most commercial APIs (large-v3 model) | Same core Whisper accuracy — WhisperX adds forced alignment, not a different acoustic model |
@@ -367,6 +403,15 @@ The `infrastructure/asr-service.adapter.ts` in NestJS talks to `python/asr-servi
 ---
 
 ## 9. Speaker Diarization
+
+> **Describes the classic Pyannote-based path, still available as the
+> fallback when `SPEECH_PROVIDER` is unset.** The deployed default
+> (Gemini, ADR-0013) does diarization differently — it labels
+> speakers *semantically* ("Doctor" vs "Patient" based on who's
+> asking clinical questions) directly via a Gemini-native
+> `responseSchema` enum constraint, not via the anonymous-cluster +
+> separate-labeling-heuristic approach described below. See
+> `docs/modules/clinical-ai-pipeline.md` §4.
 
 **What it is.** Diarization answers "who spoke when," independent of *what* was said — it partitions the audio timeline into speaker-turn segments (Speaker A: 0:00–0:12, Speaker B: 0:12–0:19, ...) using voice characteristics (pitch, timbre, speaking style), not transcript content.
 

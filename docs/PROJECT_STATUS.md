@@ -5,7 +5,15 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-07-18 — `clinical-ai-single` branch: replaced
+**Last updated:** 2026-07-18 — README.md rewritten to describe the
+actual current stack/setup (was still describing a pre-pg-boss,
+pre-Supabase, pre-worker state), and a new
+`docs/modules/clinical-ai-pipeline.md` added as the accurate,
+detailed, current-state replacement for `architecture.md`'s original
+pre-build pipeline sections (§3/§7/§8/§9, now cross-referenced with
+"superseded" callouts rather than rewritten line-by-line) — covers
+exact chunking mechanics, upload, worker stitching, transcription, and
+LLM extraction. Previous entry: `clinical-ai-single` branch replaced
 BullMQ/Redis with pg-boss (Postgres-native queue) after Redis's
 free-tier quota was exhausted twice during testing. No hosted Redis
 dependency remains anywhere in this repo. Verified end-to-end against
