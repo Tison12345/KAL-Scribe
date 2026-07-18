@@ -1,6 +1,6 @@
 import type { TranscriptSegment } from "./transcript-segment.js";
 
-/** Mirrors architecture.md §12's `consultation_transcripts` table. */
+/** Mirrors the `consultation_transcripts` table (docs/adr/0014). */
 export interface ConsultationTranscript {
   id: string;
   recordingId: string;
@@ -8,6 +8,9 @@ export interface ConsultationTranscript {
   sttProvider: string;
   diarizationProvider: string | null;
   languageDetected: string[] | null;
+  isMultilingual: boolean | null;
+  isCodeSwitched: boolean | null;
+  transcriptionLatencyMs: number | null;
   createdAt: string;
 }
 
@@ -16,6 +19,10 @@ export interface CreateTranscriptRequest {
   sttProvider: string;
   diarizationProvider: string | null;
   languageDetected: string[] | null;
+  isMultilingual?: boolean | null;
+  isCodeSwitched?: boolean | null;
+  rawResponse?: unknown;
+  transcriptionLatencyMs?: number | null;
 }
 
 export interface CreateTranscriptResponse {

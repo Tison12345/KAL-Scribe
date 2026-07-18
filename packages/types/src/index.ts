@@ -1,4 +1,9 @@
 export type {
+  ConsultationAiSessionStatus,
+  ConsultationAiSession,
+} from "./consultation-ai-session.js";
+
+export type {
   ConsultationRecording,
   ConsultationRecordingStatus,
   SttDevice,
@@ -10,6 +15,7 @@ export type {
   UploadTargetMethod,
   CompleteUploadRequest,
   CompleteUploadResponse,
+  UpdateRecordingAudioMetadataRequest,
 } from "./consultation-recording.js";
 
 export type {
@@ -18,12 +24,12 @@ export type {
   ConsultationAiJob,
   TranscriptionJobPayload,
   ExtractionJobPayload,
+  UpdateJobStatusRequest,
 } from "./clinical-ai-job.js";
 
 export {
   CLINICAL_AI_QUEUE_NAMES,
   DEFAULT_QUEUE_JOB_OPTIONS,
-  BULLMQ_PREFIX,
 } from "./clinical-ai-queues.js";
 export type { ClinicalAiQueueName } from "./clinical-ai-queues.js";
 
@@ -47,7 +53,6 @@ export {
 export type {
   SrotasKey,
   SrotasDisturbanceType,
-  BpPosition,
   QuantityUnit,
   StrokeDirection,
   Pressure,
@@ -70,11 +75,22 @@ export type {
 } from "./clinical-extraction.js";
 
 export type {
-  ConsultationAiResultStatus,
-  ConsultationAiResult,
+  ConsultationAiRun,
   CreateExtractionResultRequest,
   CreateExtractionResultResponse,
   EnqueueExtractionJobRequest,
+  ConsultationAnalytics,
+} from "./consultation-ai-run.js";
+
+export type {
+  ConsultationReviewStatus,
+  ConsultationReview,
+  ReviewDraft,
   UpdateReviewDraftRequest,
   AcceptReviewDraftRequest,
-} from "./consultation-ai-result.js";
+} from "./consultation-review.js";
+
+export type {
+  ConsultationAiAuditLogEvent,
+  RecordAuditEventRequest,
+} from "./consultation-ai-audit-log.js";
