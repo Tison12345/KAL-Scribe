@@ -5,15 +5,38 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-07-18 — README.md rewritten to describe the
-actual current stack/setup (was still describing a pre-pg-boss,
-pre-Supabase, pre-worker state), and a new
-`docs/modules/clinical-ai-pipeline.md` added as the accurate,
-detailed, current-state replacement for `architecture.md`'s original
-pre-build pipeline sections (§3/§7/§8/§9, now cross-referenced with
-"superseded" callouts rather than rewritten line-by-line) — covers
-exact chunking mechanics, upload, worker stitching, transcription, and
-LLM extraction. Previous entry: `clinical-ai-single` branch replaced
+**Last updated:** 2026-07-18 — `multilingual-support` branch: Gemini's
+transcription now targets Kannada, Hindi, Tamil, Malayalam, and
+Sanskrit (Ayurvedic terminology) alongside English (docs/adr/0016).
+Non-English speech is still translated to English as the primary
+transcript (used for extraction), but each segment now also captures
+its verbatim original-script wording (`originalText`) and dominant
+language (`originalLanguage`) for audit purposes — nullable, populated
+only on the Gemini path. `TranscriptViewer` surfaces the
+already-existing-but-previously-invisible `languageDetected`/
+`isCodeSwitched` signal as a small badge, plus a global "Show
+Original"/"Show English" toggle rendering original-script text in a
+scoped Noto Sans font (Devanagari/Kannada/Tamil/Malayalam, loaded via
+CSS variables, Manrope stays the app default everywhere else). Two new
+eval fixtures (Kannada-English code-switched, Hindi) added to
+`tests/eval/`; found and fixed a latent scoring bug along the way —
+`familyHistory`/`treatments` checks in `score.ts` always reported a
+false failure when a fixture had nothing to expect there, now skipped
+correctly. **Verified**: full workspace typecheck/build/lint pass
+clean. **Not yet verified**: actual Gemini transcription accuracy for
+Kannada/Tamil/Malayalam against real audio — no audio-level fixtures
+exist yet for any language (a content-acquisition dependency, not a
+code gap); the two new eval fixtures test extraction-only, with
+hand-authored English text simulating what translation would produce.
+Previous entry: README.md rewritten to describe the actual current
+stack/setup (was still describing a pre-pg-boss, pre-Supabase,
+pre-worker state), and a new `docs/modules/clinical-ai-pipeline.md`
+added as the accurate, detailed, current-state replacement for
+`architecture.md`'s original pre-build pipeline sections (§3/§7/§8/§9,
+now cross-referenced with "superseded" callouts rather than rewritten
+line-by-line) — covers exact chunking mechanics, upload, worker
+stitching, transcription, and LLM extraction. Earlier entry:
+`clinical-ai-single` branch replaced
 BullMQ/Redis with pg-boss (Postgres-native queue) after Redis's
 free-tier quota was exhausted twice during testing. No hosted Redis
 dependency remains anywhere in this repo. Verified end-to-end against

@@ -249,14 +249,32 @@ hard `inline_data` limit is 20MB — the code leaves headroom and throws
 rather than silently truncating a longer recording; Gemini's File API
 for larger audio isn't implemented yet, a known follow-up).
 
-The result — a `TranscriptSegment[]` of `{ speaker, text, start, end }`
-— is persisted via `POST /clinical-ai/recordings/:id/transcript` as a
-`consultation_transcripts` row, along with `languageDetected`,
-`isMultilingual`/`isCodeSwitched`, the raw provider response, and
-transcription latency (`sttProvider`/`diarizationProvider` are both
-recorded as `"gemini/{model}"`, since one model does both jobs). The
-worker then immediately enqueues the `extraction` job for the same
-recording.
+**Multilingual (docs/adr/0016):** the clinic's consultations run in
+English, Hindi, Kannada, Tamil, or Malayalam, sometimes code-switched
+within one recording, occasionally with Sanskrit-derived Ayurvedic
+terms mixed in — the transcription prompt names all five explicitly.
+Non-English speech is still translated into English as the primary
+`text` (Ayurvedic terms normalized to standard Sanskrit-transliteration
+spelling, e.g. always "Vata" never "Vatha", since extraction matches
+this spelling against fixed dropdown options), but each segment also
+now captures `originalText` (verbatim, original script) and
+`originalLanguage` (that segment's dominant ISO 639-1 code) — an audit
+trail of what was actually said, not just the translation. Sanskrit
+(`sa`) is scoped as a terminology tag, not a primary spoken-language
+target — the prompt explicitly avoids tagging every familiar Ayurvedic
+noun as a language switch. Both fields are nullable on
+`TranscriptSegment`: always populated on this (Gemini) path, always
+`null` on the classic WhisperX path (`internal-api-client.ts`'s
+`processAudio()` — no equivalent signal exists there).
+
+The result — a `TranscriptSegment[]` of `{ speaker, text, originalText,
+originalLanguage, start, end }` — is persisted via `POST
+/clinical-ai/recordings/:id/transcript` as a `consultation_transcripts`
+row, along with `languageDetected`, `isMultilingual`/`isCodeSwitched`,
+the raw provider response, and transcription latency
+(`sttProvider`/`diarizationProvider` are both recorded as
+`"gemini/{model}"`, since one model does both jobs). The worker then
+immediately enqueues the `extraction` job for the same recording.
 
 ## 5. Clinical extraction
 
@@ -390,6 +408,19 @@ the real prescription record and marks the review `accepted`;
 Discard marks it `discarded`. Both are mutually terminal (a discarded
 draft can't later be accepted and vice versa).
 
+Separately, `TranscriptViewer.tsx` (not `ReviewDraftPanel` — the
+transcript, not the extracted draft) surfaces the multilingual signal
+described in §4: a language badge on the header
+(`languageDetected`/`isCodeSwitched`, persisted since an earlier
+migration but never displayed until docs/adr/0016) and a global "Show
+Original"/"Show English" toggle that switches every segment's
+displayed text between the English `text` and its `originalText` at
+once, rendered in a script-appropriate font (Noto Sans Devanagari/
+Kannada/Tamil/Malayalam, scoped to this view only via CSS variables —
+`ReviewDraftPanel` and the rest of the app stay on Manrope, no
+localization). Segments with nothing to show in the original view
+(already English) keep showing English even while the toggle is on.
+
 ## Open questions / known gaps
 
 - Gemini's inline-audio 19MB cap means very long recordings will fail
@@ -400,3 +431,8 @@ draft can't later be accepted and vice versa).
   `docs/architecture.md` §18) — the field is always `null` today.
 - No live browser click-through test exists for the chunked-recording
   → review flow beyond manual testing described in `docs/log/`.
+- Actual Gemini transcription accuracy for Kannada/Tamil/Malayalam
+  specifically is unverified (docs/adr/0016) — two new eval fixtures
+  test extraction only, against hand-authored English text simulating
+  what translation would produce; no audio-level fixtures exist yet
+  for any language, a content-acquisition dependency, not a code gap.
