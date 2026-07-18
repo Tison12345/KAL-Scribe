@@ -12,7 +12,6 @@ import { SROTAS_DISTURBANCE_TYPES } from "@kal-scribe/types";
 // Strict enums — confirmed NO "Other" escape hatch exists for these in
 // the live CMS form (verified against the actual dropdown components,
 // not just the type file).
-const bpPositionSchema = z.enum(["Sitting", "Standing", "Lying"]).nullable();
 const quantityUnitSchema = z.enum(["mL", "gm", "tabs", "tspn", "Patch"]).nullable();
 const strokeDirectionSchema = z.enum(["anuloma", "pratiloma"]).nullable();
 const pressureSchema = z.enum(["high", "medium", "low"]).nullable();
@@ -51,10 +50,11 @@ const gynecInfoSchema = z.object({
   details: z.string().nullable(),
 });
 
+// No bpPosition — ExaminationVitalsSection.tsx has no input for it at
+// all, so it's not part of the real live form.
 const vitalsSchema = z.object({
   bpSystolic: z.number().nullable(),
   bpDiastolic: z.number().nullable(),
-  bpPosition: bpPositionSchema,
   pulse: z.number().nullable(),
   temperatureF: z.number().nullable(),
 });
@@ -107,7 +107,9 @@ const treatmentSchema = z.object({
   durationDays: z.number().nullable(),
   oilName: z.string().nullable(),
   oilQuantityMl: z.number().nullable(),
-  oilTempF: z.number().nullable(),
+  // Categorical ("Mrudu Ushna"|"Sukoshna"|"Ushnathara"|"Other: ..."),
+  // not a Fahrenheit number — see packages/types's oilTempF comment.
+  oilTempF: z.string().nullable(),
   strokeDirection: strokeDirectionSchema,
   bodyPart: z.string().nullable(),
   pressure: pressureSchema,
@@ -155,7 +157,11 @@ export const clinicalExtractionSchema = z.object({
   ojas: z.string().nullable(),
   vyaadhi: z.string().nullable(),
   modernDiagnosis: z.string().nullable(),
-  clinicalNotes: z.string(),
+  // .min(1), not just string() — clinicalNotes is doctor-only/never
+  // patient-facing, so it's mandatory (prompt.ts rule 9): an empty
+  // string fails validation and triggers groq-provider.ts's one
+  // retry-with-feedback instead of silently shipping a blank summary.
+  clinicalNotes: z.string().min(1),
 
   // Prescription tab
   medicines: z.array(medicineSchema),
@@ -176,12 +182,24 @@ export const clinicalExtractionSchema = z.object({
 
 export const createExtractionResultSchema = z.object({
   transcriptId: z.string().min(1),
-  llmProvider: z.string().min(1),
+  provider: z.string().min(1),
+  model: z.string().min(1),
   extraction: clinicalExtractionSchema,
+  promptVersion: z.string().min(1).optional(),
+  temperature: z.number().nullable().optional(),
+  latencyMs: z.number().int().nonnegative().nullable().optional(),
+  inputTokens: z.number().int().nonnegative().nullable().optional(),
+  outputTokens: z.number().int().nonnegative().nullable().optional(),
+  totalTokens: z.number().int().nonnegative().nullable().optional(),
+  estimatedCostUsd: z.number().nonnegative().nullable().optional(),
+  retryCount: z.number().int().nonnegative().optional(),
+  hadValidationRetry: z.boolean().optional(),
+  rawResponse: z.unknown().optional(),
 });
 
 export const enqueueExtractionJobSchema = z.object({
   transcriptId: z.string().min(1),
+  requestedProvider: z.string().min(1).optional(),
 });
 
 export const updateReviewDraftSchema = z.object({

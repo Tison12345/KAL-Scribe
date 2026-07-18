@@ -3,7 +3,7 @@ import type {
   CompleteUploadRequest,
   CompleteUploadResponse,
   ConsultationAiJob,
-  ConsultationAiResult,
+  ReviewDraft,
   ConsultationRecording,
   ConsultationTranscript,
   RequestChunkUploadRequest,
@@ -91,7 +91,7 @@ export function relabelTranscriptSpeakers(
  * the background. */
 export async function getExtraction(
   recordingId: string,
-): Promise<ConsultationAiResult | null> {
+): Promise<ReviewDraft | null> {
   const res = await fetch(
     `${getApiBaseUrl()}/clinical-ai/recordings/${recordingId}/extraction`,
   );
@@ -99,26 +99,26 @@ export async function getExtraction(
   if (!res.ok) {
     throw new Error(`Failed to get extraction: ${res.status} ${await res.text()}`);
   }
-  return res.json() as Promise<ConsultationAiResult>;
+  return res.json() as Promise<ReviewDraft>;
 }
 
 export function updateReviewDraft(
   recordingId: string,
   request: UpdateReviewDraftRequest,
-): Promise<ConsultationAiResult> {
+): Promise<ReviewDraft> {
   return patchJson(`/clinical-ai/recordings/${recordingId}/extraction`, request);
 }
 
 export function acceptReviewDraft(
   recordingId: string,
   request: AcceptReviewDraftRequest,
-): Promise<ConsultationAiResult> {
+): Promise<ReviewDraft> {
   return postJson(`/clinical-ai/recordings/${recordingId}/extraction/accept`, request);
 }
 
 export function discardReviewDraft(
   recordingId: string,
-): Promise<ConsultationAiResult> {
+): Promise<ReviewDraft> {
   return postJson(`/clinical-ai/recordings/${recordingId}/extraction/discard`);
 }
 

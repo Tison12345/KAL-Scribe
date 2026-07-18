@@ -26,7 +26,7 @@
  * live in the CMS today, deliberately excluded here per an explicit
  * product decision, not an oversight).
  */
-export const CLINICAL_EXTRACTION_SCHEMA_VERSION = "2.0";
+export const CLINICAL_EXTRACTION_SCHEMA_VERSION = "2.1";
 
 /** The 15 srotas the live Srotas Pariksha section actually offers —
  * confirmed against `SrotasSection.tsx`'s own `SROTAS` list, NOT the
@@ -64,7 +64,6 @@ export const SROTAS_DISTURBANCE_TYPES = [
 ] as const;
 export type SrotasDisturbanceType = (typeof SROTAS_DISTURBANCE_TYPES)[number];
 
-export type BpPosition = "Sitting" | "Standing" | "Lying";
 export type QuantityUnit = "mL" | "gm" | "tabs" | "tspn" | "Patch";
 export type StrokeDirection = "anuloma" | "pratiloma";
 export type Pressure = "high" | "medium" | "low";
@@ -101,10 +100,12 @@ export interface GynecInfo {
   details: string | null;
 }
 
+/** No `bpPosition` field — `ExaminationVitalsSection.tsx` has no input
+ * for it at all; `Vitals` only covers the three vitals actually
+ * collected in the live form. */
 export interface Vitals {
   bpSystolic: number | null;
   bpDiastolic: number | null;
-  bpPosition: BpPosition | null;
   pulse: number | null;
   temperatureF: number | null;
 }
@@ -160,7 +161,13 @@ export interface ExtractedTreatment {
   durationDays: number | null;
   oilName: string | null;
   oilQuantityMl: number | null;
-  oilTempF: number | null;
+  /** Categorical, NOT a Fahrenheit number despite the field name — the
+   * live form (`therapy-instructions-format.ts`'s `OIL_TEMP_OPTIONS`)
+   * is "Mrudu Ushna" | "Sukoshna" | "Ushnathara" | "Other: <text>". The
+   * `oilTempF` name is inherited as-is from the CMS's own field name
+   * (kept for mapping fidelity per this schema's own naming rule), even
+   * though it no longer means Fahrenheit in practice. */
+  oilTempF: string | null;
   strokeDirection: StrokeDirection | null;
   bodyPart: string | null;
   pressure: Pressure | null;

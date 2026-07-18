@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ClinicalExtraction, ConsultationAiResult } from "@kal-scribe/types";
+import type { ClinicalExtraction, ReviewDraft } from "@kal-scribe/types";
 import {
   acceptReviewDraft,
   discardReviewDraft,
@@ -18,7 +18,7 @@ const AUTOSAVE_DEBOUNCE_MS = 800;
 const DEV_DOCTOR_ID_REF = "dev-doctor";
 
 export interface UseReviewDraftResult {
-  result: ConsultationAiResult | null;
+  result: ReviewDraft | null;
   /** The editable working copy: `editedExtraction` if the doctor has
    * already edited something, otherwise the original AI `extraction`.
    * Never the same object reference as `result.extraction` once
@@ -42,7 +42,7 @@ export interface UseReviewDraftResult {
 export function useReviewDraft(
   recordingId: string | null,
 ): UseReviewDraftResult {
-  const [result, setResult] = useState<ConsultationAiResult | null>(null);
+  const [result, setResult] = useState<ReviewDraft | null>(null);
   const [draft, setDraft] = useState<ClinicalExtraction | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
