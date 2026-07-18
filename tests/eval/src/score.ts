@@ -59,12 +59,17 @@ export function scoreExtraction(
     detail: `got: [${extraction.medicines.map((m) => m.matchConfidence).join(", ")}]`,
   });
 
-  const treatmentNames = extraction.treatments.map((t) => t.treatmentName);
-  checks.push({
-    name: "treatments includes the recommended massage",
-    passed: expected.treatments.expectedNameKeywords.some((kw) => anyItemMatches(treatmentNames, kw)),
-    detail: `got: [${treatmentNames.join(", ")}]`,
-  });
+  // Empty expectedNameKeywords means this fixture's transcript never
+  // mentioned a treatment — skip the check (an empty-array .some()
+  // would otherwise always report a false failure).
+  if (expected.treatments.expectedNameKeywords.length > 0) {
+    const treatmentNames = extraction.treatments.map((t) => t.treatmentName);
+    checks.push({
+      name: "treatments includes an expected treatment",
+      passed: expected.treatments.expectedNameKeywords.some((kw) => anyItemMatches(treatmentNames, kw)),
+      detail: `got: [${treatmentNames.join(", ")}]`,
+    });
+  }
 
   for (const keyword of expected.dietAvoid.expectedKeywords) {
     checks.push({
@@ -95,12 +100,18 @@ export function scoreExtraction(
     detail: `got: ${extraction.followUpValue} ${extraction.followUpUnit}`,
   });
 
-  const familyRelations = extraction.familyHistory?.[expected.familyHistory.expectedDisease] ?? [];
-  checks.push({
-    name: `familyHistory["${expected.familyHistory.expectedDisease}"] includes "${expected.familyHistory.expectedRelationKeyword}"`,
-    passed: anyItemMatches(familyRelations, expected.familyHistory.expectedRelationKeyword),
-    detail: `got: ${JSON.stringify(extraction.familyHistory)}`,
-  });
+  // Empty expectedDisease means this fixture's transcript never
+  // mentioned family history at all — skip the check rather than
+  // fabricate a lookup against a disease key of "" (which would
+  // always report a false failure, not a real signal).
+  if (expected.familyHistory.expectedDisease) {
+    const familyRelations = extraction.familyHistory?.[expected.familyHistory.expectedDisease] ?? [];
+    checks.push({
+      name: `familyHistory["${expected.familyHistory.expectedDisease}"] includes "${expected.familyHistory.expectedRelationKeyword}"`,
+      passed: anyItemMatches(familyRelations, expected.familyHistory.expectedRelationKeyword),
+      detail: `got: ${JSON.stringify(extraction.familyHistory)}`,
+    });
+  }
 
   if (expected.examFindingsShouldBeEmpty) {
     const ashtavidhaAllNull = Object.values(extraction.ashtavidhaPariksha).every((v) => v === null);
