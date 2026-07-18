@@ -2,7 +2,7 @@
   "name": "@kal-scribe/clinical-ai-worker",
   "version": "0.0.1",
   "private": true,
-  "description": "Separately-deployed BullMQ worker process for the clinical-ai job pipeline (architecture.md §5, §13) — a stuck transcription job must never compete with apps/api's HTTP request latency.",
+  "description": "Separately-deployed pg-boss worker process for the clinical-ai job pipeline (architecture.md §5, §13, docs/adr/0015) — a stuck transcription job must never compete with apps/api's HTTP request latency.",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/main.ts",
@@ -14,9 +14,8 @@
     "@kal-scribe/config": "workspace:*",
     "@kal-scribe/llm-client": "workspace:*",
     "@kal-scribe/types": "workspace:*",
-    "bullmq": "^5.79.2",
     "dotenv": "^17.4.2",
-    "ioredis": "5.10.1",
+    "pg-boss": "^12.26.1",
     "undici": "^8.7.0"
   },
   "devDependencies": {

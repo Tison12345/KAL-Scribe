@@ -11,11 +11,12 @@ import type {
   CreateTranscriptResponse,
   ProcessAudioResponse,
   SttDevice,
+  UpdateRecordingAudioMetadataRequest,
 } from "@kal-scribe/types";
 
 /**
  * Everything workers/clinical-ai-worker calls over HTTP: apps/api (for
- * anything needing the DB or a BullMQ producer) and python/asr-service
+ * anything needing the DB or a queue producer) and python/asr-service
  * (for STT+diarization inference). Consolidated into one file rather
  * than one near-duplicate file per endpoint group — see docs/adr/0010
  * for why the worker calls apps/api over HTTP at all instead of
@@ -44,6 +45,24 @@ async function postJson<TResponse>(
   });
   if (!res.ok) {
     throw new Error(`POST ${urlPath} failed: ${res.status} ${await res.text()}`);
+  }
+  const text = await res.text();
+  return (text.length > 0 ? JSON.parse(text) : undefined) as TResponse;
+}
+
+/** Same "TResponse is void for empty bodies" reasoning as postJson. */
+async function patchJson<TResponse>(
+  apiBaseUrl: string,
+  urlPath: string,
+  body?: unknown,
+): Promise<TResponse> {
+  const res = await fetch(`${apiBaseUrl}${urlPath}`, {
+    method: "PATCH",
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    throw new Error(`PATCH ${urlPath} failed: ${res.status} ${await res.text()}`);
   }
   const text = await res.text();
   return (text.length > 0 ? JSON.parse(text) : undefined) as TResponse;
@@ -164,6 +183,85 @@ export async function fetchAndStitchRecordingAudio(
   return { path: outputPath, cleanup };
 }
 
+interface FfprobeStream {
+  codec_type?: string;
+  codec_name?: string;
+  sample_rate?: string;
+  channels?: number;
+}
+
+interface FfprobeOutput {
+  streams?: FfprobeStream[];
+}
+
+/** Audio metadata (docs/adr/0014, `consultation_recordings.sample_rate_hz`
+ * etc.) — informational only, for debugging transcription issues
+ * later, never load-bearing for the pipeline itself. Returns all-null
+ * on any ffprobe failure rather than throwing — a recording still
+ * needs to get transcribed even if this side metadata can't be read. */
+export async function getAudioMetadata(filePath: string): Promise<{
+  sampleRateHz: number | null;
+  channels: number | null;
+  codec: string | null;
+}> {
+  try {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const proc = spawn("ffprobe", [
+        "-v",
+        "error",
+        "-show_streams",
+        "-select_streams",
+        "a:0",
+        "-print_format",
+        "json",
+        filePath,
+      ]);
+      let out = "";
+      let stderr = "";
+      proc.stdout.on("data", (chunk: Buffer) => {
+        out += chunk.toString();
+      });
+      proc.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      proc.on("error", reject);
+      proc.on("exit", (code) => {
+        if (code === 0) resolve(out);
+        else reject(new Error(`ffprobe exited with code ${code}: ${stderr}`));
+      });
+    });
+
+    const parsed = JSON.parse(stdout) as FfprobeOutput;
+    const stream = parsed.streams?.find((s) => s.codec_type === "audio");
+    return {
+      sampleRateHz: stream?.sample_rate ? Number(stream.sample_rate) : null,
+      channels: stream?.channels ?? null,
+      codec: stream?.codec_name ?? null,
+    };
+  } catch (error) {
+    console.error(
+      `[clinical-ai-worker] ffprobe failed for ${filePath}, continuing without audio metadata: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+    return { sampleRateHz: null, channels: null, codec: null };
+  }
+}
+
+/** Persists audio metadata read via ffprobe. Best-effort, informational
+ * — see UpdateRecordingAudioMetadataUseCase. */
+export function updateRecordingAudioMetadata(
+  apiBaseUrl: string,
+  recordingId: string,
+  request: UpdateRecordingAudioMetadataRequest,
+): Promise<void> {
+  return patchJson(
+    apiBaseUrl,
+    `/clinical-ai/recordings/${recordingId}/audio-metadata`,
+    request,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // apps/api — transcripts
 // ---------------------------------------------------------------------------
@@ -194,27 +292,51 @@ export function getTranscript(
 // ---------------------------------------------------------------------------
 
 /** Enqueues the extraction job (architecture.md §7 step 7→8 hand-off).
- * apps/api owns all BullMQ *producers* in this repo (docs/adr/0010) —
- * the worker asks it to enqueue rather than becoming a producer
- * itself. */
+ * apps/api owns the only queue *producer* in this repo (docs/adr/0010,
+ * docs/adr/0015) — the worker asks it to enqueue rather than becoming
+ * a producer itself. */
 export function enqueueExtractionJob(
   apiBaseUrl: string,
   recordingId: string,
   transcriptId: string,
+  requestedProvider?: string,
 ): Promise<void> {
   return postJson(apiBaseUrl, `/clinical-ai/recordings/${recordingId}/enqueue-extraction`, {
     transcriptId,
+    requestedProvider,
   });
 }
 
 /** Persists the LLM's extraction output (architecture.md §7 step 8,
- * §12's `consultation_ai_results`). */
+ * §12's `consultation_ai_runs`). */
 export function persistExtractionResult(
   apiBaseUrl: string,
   recordingId: string,
   request: CreateExtractionResultRequest,
 ): Promise<CreateExtractionResultResponse> {
   return postJson(apiBaseUrl, `/clinical-ai/recordings/${recordingId}/extraction`, request);
+}
+
+// ---------------------------------------------------------------------------
+// apps/api — job-lifecycle status reporting (docs/adr/0015)
+// ---------------------------------------------------------------------------
+
+/** Reports a job-lifecycle transition (docs/adr/0015) — replaces the
+ * old BullMQ `QueueEvents` (Redis pub/sub) listener that used to keep
+ * `consultation_ai_jobs.status` in sync from apps/api's side. pg-boss
+ * has no cross-process event stream equivalent, but the worker already
+ * knows exactly when each transition happens since it's the one
+ * running the job, so it just tells apps/api directly. */
+export function updateJobStatus(
+  apiBaseUrl: string,
+  jobId: string,
+  status: "active" | "completed" | "failed" | "dead_letter",
+  errorMessage?: string | null,
+): Promise<void> {
+  return patchJson(apiBaseUrl, `/clinical-ai/admin/jobs/${jobId}/status`, {
+    status,
+    errorMessage,
+  });
 }
 
 // ---------------------------------------------------------------------------
