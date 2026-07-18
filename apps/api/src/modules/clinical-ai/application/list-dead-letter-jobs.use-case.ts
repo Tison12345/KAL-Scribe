@@ -12,7 +12,7 @@ export class ListDeadLetterJobsUseCase {
       id: row.id,
       recordingId: row.recordingId,
       jobType: row.jobType,
-      bullmqJobId: row.bullmqJobId,
+      queueJobId: row.queueJobId,
       status: row.status,
       attemptCount: row.attemptCount,
       errorMessage: row.errorMessage,

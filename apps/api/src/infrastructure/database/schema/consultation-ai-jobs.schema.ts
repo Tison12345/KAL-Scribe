@@ -29,10 +29,11 @@ export const consultationAiJobs = pgTable('consultation_ai_jobs', {
     .notNull()
     .references(() => consultationRecordings.id),
   jobType: clinicalAiJobTypeEnum('job_type').notNull(),
-  // Cross-reference to the BullMQ job for debugging (architecture.md
-  // §13) — nullable because the row is created an instant before the
-  // BullMQ job itself is confirmed enqueued.
-  bullmqJobId: text('bullmq_job_id'),
+  // Cross-reference to the pg-boss job for debugging (architecture.md
+  // §13, docs/adr/0015 — renamed from bullmq_job_id when BullMQ/Redis
+  // was replaced) — nullable because the row is created an instant
+  // before the queue job itself is confirmed sent.
+  queueJobId: text('queue_job_id'),
   status: clinicalAiJobStatusEnum('status').notNull().default('queued'),
   attemptCount: integer('attempt_count').notNull().default(0),
   errorMessage: text('error_message'),

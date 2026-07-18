@@ -1,46 +1,72 @@
-import { BullModule } from '@nestjs/bullmq';
-import { Global, Module } from '@nestjs/common';
+import { Global, Inject, Module, type OnModuleDestroy } from '@nestjs/common';
+import { PgBoss } from 'pg-boss';
 import {
-  BULLMQ_PREFIX,
   CLINICAL_AI_QUEUE_NAMES,
   DEFAULT_QUEUE_JOB_OPTIONS,
 } from '@kal-scribe/types';
 import type { ApiEnv } from '@kal-scribe/config';
 import { API_ENV, EnvModule } from '../env/env.module';
-import { createRedisConnection } from './redis-connection';
+
+export const PG_BOSS = Symbol('PG_BOSS');
 
 /**
- * Registers the queues this repo adds (architecture.md §13): producers
- * (apps/api, via @InjectQueue) live here; actual job processing lives
- * in workers/clinical-ai-worker, a separately deployed process, so a
- * stuck transcription job never competes with API request latency.
+ * Registers the single pg-boss instance this repo's queue producer side
+ * uses (architecture.md §13, docs/adr/0015 — replaces BullMQ/Redis).
+ * apps/api only ever `send()`s jobs; actual job processing lives in
+ * workers/clinical-ai-worker, a separately deployed process, so a stuck
+ * transcription job never competes with API request latency. pg-boss
+ * runs on the same Postgres `DATABASE_URL` already in use — no
+ * additional hosted service, no separate quota to exhaust.
+ *
+ * Each source queue gets its own dead-letter queue via pg-boss's native
+ * `deadLetter` option (`createQueue` is `ON CONFLICT DO NOTHING`
+ * internally, so calling it on every boot is safe) — a small `.work()`
+ * consumer on each `*DeadLetter` queue in the worker marks
+ * `consultation_ai_jobs.status = 'dead_letter'` when pg-boss routes a
+ * job there after exhausting retries.
  */
 @Global()
 @Module({
-  imports: [
-    EnvModule,
-    BullModule.forRootAsync({
-      imports: [EnvModule],
+  imports: [EnvModule],
+  providers: [
+    {
+      provide: PG_BOSS,
       inject: [API_ENV],
-      useFactory: (env: ApiEnv) => ({
-        connection: createRedisConnection(env.REDIS_URL),
-        prefix: BULLMQ_PREFIX,
-      }),
-    }),
-    BullModule.registerQueue(
-      {
-        name: CLINICAL_AI_QUEUE_NAMES.transcription,
-        defaultJobOptions: DEFAULT_QUEUE_JOB_OPTIONS,
+      useFactory: async (env: ApiEnv): Promise<PgBoss> => {
+        const boss = new PgBoss({
+          connectionString: env.DATABASE_URL,
+          // apps/api is producer-only (never calls .work()) — no need
+          // for this instance to also run pg-boss's maintenance loops;
+          // the worker's own instance already does.
+          supervise: false,
+          schedule: false,
+        });
+        boss.on('error', (error) => {
+          console.error('[pg-boss]', error);
+        });
+        await boss.start();
+
+        await boss.createQueue(CLINICAL_AI_QUEUE_NAMES.transcriptionDeadLetter);
+        await boss.createQueue(CLINICAL_AI_QUEUE_NAMES.transcription, {
+          ...DEFAULT_QUEUE_JOB_OPTIONS,
+          deadLetter: CLINICAL_AI_QUEUE_NAMES.transcriptionDeadLetter,
+        });
+        await boss.createQueue(CLINICAL_AI_QUEUE_NAMES.extractionDeadLetter);
+        await boss.createQueue(CLINICAL_AI_QUEUE_NAMES.extraction, {
+          ...DEFAULT_QUEUE_JOB_OPTIONS,
+          deadLetter: CLINICAL_AI_QUEUE_NAMES.extractionDeadLetter,
+        });
+
+        return boss;
       },
-      {
-        name: CLINICAL_AI_QUEUE_NAMES.extraction,
-        defaultJobOptions: DEFAULT_QUEUE_JOB_OPTIONS,
-      },
-      // No defaultJobOptions — this is a plain inspection queue, not
-      // something a Worker processes with retries.
-      { name: CLINICAL_AI_QUEUE_NAMES.deadLetter },
-    ),
+    },
   ],
-  exports: [BullModule],
+  exports: [PG_BOSS],
 })
-export class QueueModule {}
+export class QueueModule implements OnModuleDestroy {
+  constructor(@Inject(PG_BOSS) private readonly boss: PgBoss) {}
+
+  async onModuleDestroy(): Promise<void> {
+    await this.boss.stop();
+  }
+}

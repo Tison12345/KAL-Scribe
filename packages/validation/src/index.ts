@@ -7,6 +7,8 @@ export {
 
 export { createTranscriptSchema } from "./consultation-transcript.schema.js";
 
+export { updateJobStatusSchema } from "./clinical-ai-job.schema.js";
+
 export {
   clinicalExtractionSchema,
   createExtractionResultSchema,
