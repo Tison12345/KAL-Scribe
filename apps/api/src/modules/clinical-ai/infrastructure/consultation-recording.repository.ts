@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import { DATABASE } from '../../../infrastructure/database/database.module';
 import type { DrizzleDb } from '../../../infrastructure/database/client';
 import {
@@ -30,6 +30,16 @@ export class ConsultationRecordingRepository {
       .from(consultationRecordings)
       .where(eq(consultationRecordings.id, id));
     return row;
+  }
+
+  /** Pause/resume ordering — how many recordings already exist in this
+   * session, so the next one gets the right `sequenceInSession`. */
+  async countBySessionId(sessionId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(consultationRecordings)
+      .where(eq(consultationRecordings.sessionId, sessionId));
+    return row?.value ?? 0;
   }
 
   async update(
