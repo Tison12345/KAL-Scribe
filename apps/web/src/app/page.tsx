@@ -1,8 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useId, useState } from "react";
+import { Suspense, useEffect, useId } from "react";
 import { useSearchParams } from "next/navigation";
-import type { SttDevice } from "@kal-scribe/types";
 import {
   ClinicalSessionProvider,
   useClinicalSession,
@@ -11,7 +10,6 @@ import { ConsentConfirmation } from "@/features/clinical-ai/components/ConsentCo
 import { PipelineProgressTracker } from "@/features/clinical-ai/components/PipelineProgressTracker";
 import { RecordButton } from "@/features/clinical-ai/components/RecordButton";
 import { ReviewDraftPanel } from "@/features/clinical-ai/components/ReviewDraftPanel";
-import { SttDeviceToggle } from "@/features/clinical-ai/components/SttDeviceToggle";
 import { TranscriptViewer } from "@/features/clinical-ai/components/TranscriptViewer";
 import { UploadProgress } from "@/features/clinical-ai/components/UploadProgress";
 import { useAudioRecorder } from "@/features/clinical-ai/hooks/useAudioRecorder";
@@ -36,15 +34,11 @@ function RecordingSession() {
   const transcript = useTranscript(uploadSession.recordingId);
   const reviewDraft = useReviewDraft(uploadSession.recordingId);
   const pipelineProgress = usePipelineProgress(uploadSession.recordingId);
-  // GPU is ~6x faster on this machine (docs/adr/0012) — default to it,
-  // let CPU be an explicit opt-out rather than the other way around.
-  const [sttDevice, setSttDevice] = useState<SttDevice>("gpu");
 
   const handleStart = () => {
     void uploadSession.begin({
       consultationSessionRef: sessionRef,
       doctorIdRef: DEV_DOCTOR_ID_REF,
-      sttDevice,
     });
     void recorder.start();
   };
@@ -75,11 +69,6 @@ function RecordingSession() {
   return (
     <div className="space-y-8">
       <ConsentConfirmation />
-      <SttDeviceToggle
-        value={sttDevice}
-        onChange={setSttDevice}
-        disabled={recorder.status !== "idle"}
-      />
       <RecordButton
         status={recorder.status}
         error={recorder.error}
