@@ -34,7 +34,11 @@ const env = parseWorkerEnv();
 // `supervise`/`schedule` stay at their defaults (true) here, unlike
 // apps/api's producer-only instance — this process is the actual
 // consumer and needs pg-boss's maintenance loops active.
-const boss = new PgBoss({ connectionString: env.DATABASE_URL });
+// Explicit max, not pg-boss's own pg.Pool default of 10 — Supabase's
+// Session pooler caps total concurrent clients at 15, shared across
+// this pool, its own LISTEN/NOTIFY connection, and apps/api's two
+// pools (docs/adr/0015).
+const boss = new PgBoss({ connectionString: env.DATABASE_URL, max: 4 });
 boss.on("error", (error) => {
   console.error("[clinical-ai-worker:pg-boss]", error);
 });

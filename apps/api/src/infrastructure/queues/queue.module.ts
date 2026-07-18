@@ -40,6 +40,14 @@ export const PG_BOSS = Symbol('PG_BOSS');
           // the worker's own instance already does.
           supervise: false,
           schedule: false,
+          // A producer never fetches jobs, so it gets no benefit from
+          // pg-boss's LISTEN/NOTIFY wake-up path — skip it to save the
+          // dedicated connection it would otherwise hold open.
+          useListenNotify: false,
+          // Explicit max, not pg-boss's own pg.Pool default of 10 —
+          // Supabase's Session pooler caps total concurrent clients at
+          // 15 across every pool this repo opens (docs/adr/0015).
+          max: 3,
         });
         boss.on('error', (error) => {
           console.error('[pg-boss]', error);
