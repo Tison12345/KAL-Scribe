@@ -4,7 +4,8 @@ import type {
   CompleteUploadRequest,
   CompleteUploadResponse,
   ConsultationAiJob,
-  ConsultationAiResult,
+  ConsultationAiRun,
+  ConsultationAnalytics,
   ConsultationRecording,
   ConsultationTranscript,
   CreateExtractionResultRequest,
@@ -15,8 +16,10 @@ import type {
   RequestChunkReadResponse,
   RequestChunkUploadRequest,
   RequestChunkUploadResponse,
+  ReviewDraft,
   StartRecordingRequest,
   StartRecordingResponse,
+  UpdateRecordingAudioMetadataRequest,
   UpdateReviewDraftRequest,
 } from '@kal-scribe/types';
 import {
@@ -27,6 +30,7 @@ import {
   enqueueExtractionJobSchema,
   requestChunkUploadSchema,
   startRecordingSchema,
+  updateRecordingAudioMetadataSchema,
   updateReviewDraftSchema,
 } from '@kal-scribe/validation';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe';
@@ -36,14 +40,18 @@ import { CreateExtractionResultUseCase } from '../application/create-extraction-
 import { CreateTranscriptUseCase } from '../application/create-transcript.use-case';
 import { DiscardReviewDraftUseCase } from '../application/discard-review-draft.use-case';
 import { EnqueueExtractionJobUseCase } from '../application/enqueue-extraction-job.use-case';
+import { GetConsultationAnalyticsUseCase } from '../application/get-consultation-analytics.use-case';
+import { GetConsultationRunUseCase } from '../application/get-consultation-run.use-case';
 import { GetExtractionResultUseCase } from '../application/get-extraction-result.use-case';
 import { GetRecordingUseCase } from '../application/get-recording.use-case';
 import { GetTranscriptUseCase } from '../application/get-transcript.use-case';
+import { ListConsultationRunsUseCase } from '../application/list-consultation-runs.use-case';
 import { ListRecordingJobsUseCase } from '../application/list-recording-jobs.use-case';
 import { RelabelTranscriptSpeakersUseCase } from '../application/relabel-transcript-speakers.use-case';
 import { RequestChunkReadUseCase } from '../application/request-chunk-read.use-case';
 import { RequestChunkUploadUseCase } from '../application/request-chunk-upload.use-case';
 import { StartRecordingUseCase } from '../application/start-recording.use-case';
+import { UpdateRecordingAudioMetadataUseCase } from '../application/update-recording-audio-metadata.use-case';
 import { UpdateReviewDraftUseCase } from '../application/update-review-draft.use-case';
 
 /** Doctor-facing REST endpoints — thin, no business logic, one
@@ -66,6 +74,10 @@ export class ClinicalAiController {
     private readonly discardReviewDraft: DiscardReviewDraftUseCase,
     private readonly getRecording: GetRecordingUseCase,
     private readonly listRecordingJobs: ListRecordingJobsUseCase,
+    private readonly updateRecordingAudioMetadata: UpdateRecordingAudioMetadataUseCase,
+    private readonly listConsultationRuns: ListConsultationRunsUseCase,
+    private readonly getConsultationRun: GetConsultationRunUseCase,
+    private readonly getConsultationAnalytics: GetConsultationAnalyticsUseCase,
   ) {}
 
   @Post()
@@ -88,6 +100,15 @@ export class ClinicalAiController {
     @Param('id') id: string,
   ): Promise<ConsultationAiJob[]> {
     return this.listRecordingJobs.execute(id);
+  }
+
+  @Patch(':id/audio-metadata')
+  async updateAudioMetadata(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateRecordingAudioMetadataSchema))
+    body: UpdateRecordingAudioMetadataRequest,
+  ): Promise<void> {
+    return this.updateRecordingAudioMetadata.execute(id, body);
   }
 
   @Post(':id/chunks')
@@ -145,7 +166,11 @@ export class ClinicalAiController {
     @Body(new ZodValidationPipe(enqueueExtractionJobSchema))
     body: EnqueueExtractionJobRequest,
   ): Promise<void> {
-    return this.enqueueExtractionJob.execute(id, body.transcriptId);
+    return this.enqueueExtractionJob.execute(
+      id,
+      body.transcriptId,
+      body.requestedProvider,
+    );
   }
 
   @Post(':id/extraction')
@@ -158,9 +183,7 @@ export class ClinicalAiController {
   }
 
   @Get(':id/extraction')
-  async getRecordingExtraction(
-    @Param('id') id: string,
-  ): Promise<ConsultationAiResult> {
+  async getRecordingExtraction(@Param('id') id: string): Promise<ReviewDraft> {
     return this.getExtractionResult.execute(id);
   }
 
@@ -169,7 +192,7 @@ export class ClinicalAiController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateReviewDraftSchema))
     body: UpdateReviewDraftRequest,
-  ): Promise<ConsultationAiResult> {
+  ): Promise<ReviewDraft> {
     return this.updateReviewDraft.execute(id, body);
   }
 
@@ -178,14 +201,36 @@ export class ClinicalAiController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(acceptReviewDraftSchema))
     body: AcceptReviewDraftRequest,
-  ): Promise<ConsultationAiResult> {
+  ): Promise<ReviewDraft> {
     return this.acceptReviewDraft.execute(id, body);
   }
 
   @Post(':id/extraction/discard')
   async discardRecordingExtraction(
     @Param('id') id: string,
-  ): Promise<ConsultationAiResult> {
+  ): Promise<ReviewDraft> {
     return this.discardReviewDraft.execute(id);
+  }
+
+  @Get(':id/runs')
+  async listRecordingRuns(
+    @Param('id') id: string,
+  ): Promise<ConsultationAiRun[]> {
+    return this.listConsultationRuns.execute(id);
+  }
+
+  @Get(':id/runs/:runId')
+  async getRecordingRun(
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+  ): Promise<ConsultationAiRun> {
+    return this.getConsultationRun.execute(id, runId);
+  }
+
+  @Get(':id/analytics')
+  async getRecordingAnalytics(
+    @Param('id') id: string,
+  ): Promise<ConsultationAnalytics> {
+    return this.getConsultationAnalytics.execute(id);
   }
 }
