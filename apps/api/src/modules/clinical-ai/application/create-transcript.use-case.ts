@@ -27,6 +27,10 @@ export class CreateTranscriptUseCase {
       sttProvider: request.sttProvider,
       diarizationProvider: request.diarizationProvider,
       languageDetected: request.languageDetected,
+      isMultilingual: request.isMultilingual ?? null,
+      isCodeSwitched: request.isCodeSwitched ?? null,
+      rawResponse: request.rawResponse ?? null,
+      transcriptionLatencyMs: request.transcriptionLatencyMs ?? null,
     });
 
     return { transcriptId: row.id };

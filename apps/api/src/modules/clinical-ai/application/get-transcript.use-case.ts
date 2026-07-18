@@ -24,6 +24,9 @@ export class GetTranscriptUseCase {
       sttProvider: row.sttProvider,
       diarizationProvider: row.diarizationProvider,
       languageDetected: row.languageDetected,
+      isMultilingual: row.isMultilingual,
+      isCodeSwitched: row.isCodeSwitched,
+      transcriptionLatencyMs: row.transcriptionLatencyMs,
       createdAt: row.createdAt.toISOString(),
     };
   }
