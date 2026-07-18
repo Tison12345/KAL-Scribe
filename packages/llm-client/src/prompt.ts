@@ -1,6 +1,12 @@
 import type { TranscriptSegment } from "@kal-scribe/types";
 import { CLINICAL_EXTRACTION_SCHEMA_VERSION, SROTAS_KEYS } from "@kal-scribe/types";
 
+/** Bumped manually whenever `buildExtractionPrompt`'s wording changes
+ * — persisted per run (docs/adr/0014, `consultation_ai_runs.prompt_version`)
+ * so a prompt change has a measurable before/after, same reasoning as
+ * `CLINICAL_EXTRACTION_SCHEMA_VERSION`. */
+export const EXTRACTION_PROMPT_VERSION = "1.0";
+
 /** Renders the transcript exactly as shown in architecture.md §9's
  * example — timestamped, speaker-labeled, plain text — since that's
  * the sole input the extraction step consumes. Segment index (not a
@@ -48,7 +54,7 @@ const SCHEMA_INSTRUCTIONS = `Return ONLY a single JSON object (no markdown fence
   },
   "familyHistory": { "<disease name>": string[] /* relations, e.g. "Father" */ } | null,
   "gynec": { "menstrualHistory": string[], "daysOfFlow": number|null, "lastMenstrualDate": string|null /* YYYY-MM-DD */, "details": string|null } | null,
-  "vitals": { "bpSystolic": number|null, "bpDiastolic": number|null, "bpPosition": "Sitting"|"Standing"|"Lying"|null, "pulse": number|null, "temperatureF": number|null },
+  "vitals": { "bpSystolic": number|null, "bpDiastolic": number|null, "pulse": number|null, "temperatureF": number|null },
 
   "ashtavidhaPariksha": { "nadi": string|null, "mutra": string|null, "mala": string|null, "jivha": string|null, "shabda": string|null, "sparsha": string|null, "drik": string|null, "akruti": string|null },
   "srotasPariksha": { "<srotas key>": { "status": "normal"|"disturbed", "disturbanceTypes": string[], "notes": string } },
@@ -62,7 +68,7 @@ const SCHEMA_INSTRUCTIONS = `Return ONLY a single JSON object (no markdown fence
   "clinicalNotes": string,
 
   "medicines": [ { "medicineName": string, "quantityUnit": "mL"|"gm"|"tabs"|"tspn"|"Patch"|null, "dosageMorning": number|null, "dosageAfternoon": number|null, "dosageEvening": number|null, "dosageNight": number|null, "anupana": string|null, "timing": string|null, "durationDays": number|null, "instructions": string|null, "matchConfidence": null } ],
-  "treatments": [ { "treatmentName": string, "sessions": number|null, "sessionDurationMinutes": number|null, "durationDays": number|null, "oilName": string|null, "oilQuantityMl": number|null, "oilTempF": number|null, "strokeDirection": "anuloma"|"pratiloma"|null, "bodyPart": string|null, "pressure": "high"|"medium"|"low"|null, "specialFocus": string|null } ],
+  "treatments": [ { "treatmentName": string, "sessions": number|null, "sessionDurationMinutes": number|null, "durationDays": number|null, "oilName": string|null, "oilQuantityMl": number|null, "oilTempF": string|null, "strokeDirection": "anuloma"|"pratiloma"|null, "bodyPart": string|null, "pressure": "high"|"medium"|"low"|null, "specialFocus": string|null } ],
   "labTests": string[],
   "dietEat": string[],
   "dietAvoid": string[],
@@ -78,43 +84,43 @@ const SCHEMA_INSTRUCTIONS = `Return ONLY a single JSON object (no markdown fence
 
 Canonical option lists (use these exact strings when the field applies; if the patient/doctor clearly meant something not on this list, use your best free-text description instead — do not force a bad fit):
 - nadi / prakrithi / dosha: "Vata", "Vata Pitta", "Vata Kapha", "Pitta", "Pitta Vata", "Pitta Kapha", "Kapha", "Kapha Vata", "Kapha Pitta", "Vata Pitta Kapha"
-- mutra / drik: "Prakritam (Normal)", "Vikritam (Abnormal)"
-- mala: "Samyak Mala Pravruti (Regular)", "Mala Sanga / Vibhanda (Constipated)", "Drava Mala Pravruti (Loose)", "Vishama Mala Pravruti (Irregular)"
-- jivha: "Lipta (Coated)", "Nirlipta (Non-coated)", "Sputana (Cracked)"
-- shabda: "Prakritam (Normal)", "Vishama (Irregular)", "Durbala (Weak)"
-- sparsha: "Ushna (Hot)", "Sheeta (Cold)", "Sushka (Dry)", "Ruksha (Rough)", "Sukshma (Sensitive)", "Snigdha (Oily)"
-- akruti: "Sthula (Obese)", "Madhyama (Medium)", "Krisha (Lean)"
+- mutra / drik / mala / akruti: "Prakritam (Normal)", "Vikritam (Abnormal)"
+- jivha: "Prakritam - Nirlipta (Non Coated)", "Vikritam - Lipta (Coated)", "Vikritam - Sputana (Cracked)"
+- shabda: "Prakritam (Normal)", "Vikritam - Vishama (Irregular)", "Vikritam - Durbala (Weak)"
+- sparsha: "Ushna (Hot)", "Sheeta (Cold)", "Ruksha (Dry)", "Snigdha (Oily)"
 - agni (fixed set, no free text): "Sama (Normal)", "Manda (Low)", "Vishama (Variable)", "Tikshna (Sharp)"
 - ojas (fixed set, no free text): "Pravara (Optimal)", "Ojo Kshayam (Depleted)", "Ojo Vyapat (Vitiated)", "Ojo Visramsa (Displaced)"
 - srotas keys (only include a key if that srotas was actually assessed aloud): ${SROTAS_KEYS.join(", ")}
 - srotas disturbanceTypes (only when status is "disturbed"): "Sanga", "Vimarga Gamana", "Atipravritti", "Granthi"
-- personalHistory.bowel: "Normal", "Hard/Constipated", "Soft/Loose", "Irregular"
+- personalHistory.bowel (can be multiple): "Less than 3x/week (Infrequent)", "Ranges between 3x/week to 3x/day (Regular)", "More than 3x/day (Frequent)", "Normal Formed", "Hard/Constipated", "Soft/Loose", "Mucus present", "Blood present"
 - personalHistory.bladder (can be multiple): "Normal (4–6×/day)", "Frequent (7+/day)", "Reduced [Quantity]", "Burning", "Painful", "Nocturnal"
 - personalHistory.sleep: "Sound (7-8 hrs)", "Adequate but Light", "Insufficient (<6 hrs)", "Disturbed/Interrupted", "Insomnia", "Excessive (>9 hrs)"
 - personalHistory.appetite: "Normal", "Low", "Variable", "Sharp"
 - personalHistory.diet: "Vegetarian", "Eggetarian", "Non-Vegetarian", "Vegan", "Jain Vegetarian"
 - personalHistory.eatingOut: "Rarely/Never", "One meal a week", "3-4 meals a week", "4+ meals a week"
 - personalHistory.addiction (can be multiple): "None", "Tobacco (smoking)", "Tobacco (chewing)", "Vaping", "Alcohol — Occasional", "Alcohol — Regular", "Caffeine (excessive)", "Betel nut/Paan"
-- personalHistory.exercise: "Sedentary: little or no exercise", "Yoga/Pranayama Only", "Exercise 1-3 times/week", "Exercise 4-5 times/week", "Daily exercise or intense exercise 3-4 times/week", "Intense exercise 6-7 times/week", "Very intense exercise daily, or physical job"
+- personalHistory.exercise: "Sedentary: little or no exercise", "Exercise 1-3 times/week", "Exercise 4-5 times/week", "Daily exercise or intense exercise 3-4 times/week", "Intense exercise 6-7 times/week", "Very intense exercise daily, or physical job"
 - gynec.menstrualHistory (can be multiple): "Regular", "Irregular", "Scanty", "Heavy", "Clotty", "Painful", "Perimenopause", "Menopause", "Hysterectomy", "Pregnant", "Postpartum/Breastfeeding", "Not Started"
 - familyHistory disease names: ONLY these exact 7 keys are ever shown in the review UI: "Diabetes", "Thyroid", "Blood Pressure", "Heart Diseases", "Arthritis", "Respiratory Issues", "Cancer". Do NOT invent other disease names as keys — any family history that doesn't fit one of these 7 (e.g. "acid reflux", "migraines") goes into a single special key "_other" instead, as one sentence describing it (e.g. "familyHistory": { "_other": ["Father has acid reflux"] }).
 - familyHistory relations (values under the 7 canonical disease keys): "Father", "Mother", "Siblings", "Grandparents"
 - medicines[].quantityUnit (fixed set, no free text): "mL", "gm", "tabs", "tspn", "Patch"
 - medicines[].anupana common values (free text also allowed): "Warm Water", "Plain Water", "Jeera Water (Warm)", "Ghee", "Milk", "Honey"
-- medicines[].timing common values (free text also allowed): "Before Meals", "With Meals", "After Meals"
-- treatments[].strokeDirection (fixed set, no free text): "anuloma" (with the hair), "pratiloma" (against the hair)
+- medicines[].timing common values (free text also allowed): for oral medicines — "Before Meals", "With Meals", "After Meals"; for external-application medicines/oils — "Early Morning", "Bedtime"
+- treatments[].strokeDirection (fixed set, no free text): "anuloma" (With the hair), "pratiloma" (Against the hair)
 - treatments[].pressure (fixed set, no free text): "high", "medium", "low"
+- treatments[].oilTempF (fixed set unless doctor gives a specific unlisted description, then use "Other: <description>" — NEVER a numeric temperature, despite the field name): "Mrudu Ushna" (mildly warm), "Sukoshna" (comfortably warm), "Ushnathara" (very warm)
 - treatments[].oilName common values (free text also allowed): "Dhanwantharam Tailam", "Mahanarayana Tailam", "Sahacharadi Tailam", "Karpasasthyadi Tailam", "Murivenna", "Dhanwantharam Kuzhambu", "Mahamasha Tailam", "Pinda Tailam", "Eladi Tailam", "Nalpamaradi Tailam", "Winsoria Oil"
 
 Critical rules, in order of importance:
 1. Physical-examination findings — "ashtavidhaPariksha" (all 8 fields), "srotasPariksha", "prakrithi", "dosha", "aama", "agni", "ojas" — are things ONLY the doctor can observe by physically examining the patient (pulse, tongue, skin, pressing on the abdomen, etc.). Populate these ONLY if the doctor states the finding out loud in the transcript (e.g. "pulse shows Vata Pitta", "tongue is coated", "abdomen srotas — normal"). NEVER infer, guess, or derive these from the patient's symptoms, complaints, or general context — a patient describing digestive symptoms does NOT mean you may fill in agni or udakavaha srotas unless the doctor actually states an examination finding for it. Leave the field null (or omit the srotas key entirely) if it wasn't stated.
-2. "modernDiagnosis" is a clinical-safety field: populate it ONLY if the doctor explicitly stated a diagnosis out loud. If no diagnosis was explicitly stated, it MUST be null — never infer or guess one.
+2. "modernDiagnosis" is a clinical-safety field, shown directly to the patient — still populate it conservatively. Fill it if the doctor names a condition directly ("this looks like gastritis") OR clearly characterizes what the underlying condition is in different words ("your stomach lining is inflamed" implies gastritis) — you may restate that characterization in standard clinical terms. Still leave it null if the doctor only discussed symptoms and prescribed treatment WITHOUT ever characterizing the underlying condition — never derive a diagnosis from the patient's symptoms alone with no framing from the doctor.
 3. "medicines[].matchConfidence" MUST always be null — it is filled by a separate deterministic step, never by you.
 4. "gynec" MUST be null unless the patient is clearly female AND something gynecological was actually discussed in the transcript — never fill this in just because gender was mentioned, and never guess gender from voice.
 5. "familyHistory" MUST be null if no family medical history was mentioned at all.
 6. Every array field defaults to an empty array (never null) when nothing relevant was said; every nullable string/enum field is null (never an empty string) when not stated.
 7. "transcriptReference.segmentsUsed" lists the bracketed segment index numbers (as strings, e.g. "0", "3") that this extraction actually drew from.
-8. Base every field strictly on what was actually said in the transcript below — do not invent facts, do not pull in outside medical knowledge beyond understanding the terms used.`;
+8. Base every field strictly on what was actually said in the transcript below — do not invent facts, do not pull in outside medical knowledge beyond understanding the terms used.
+9. "clinicalNotes" is private, doctor-only, never shown to the patient — unlike "modernDiagnosis" it MUST always contain a real, non-empty summary (2-4 sentences: chief complaints, what the doctor assessed, the treatment plan) — never leave it as an empty string, even when other fields are sparse.`;
 
 export function buildExtractionPrompt(segments: TranscriptSegment[]): {
   system: string;

@@ -22,6 +22,21 @@ export function labelDoctorAndPatient(
     return segments;
   }
 
+  // clinical-ai-single branch: Gemini identifies Doctor/Patient
+  // semantically from what's actually said, not from turn order — a
+  // real improvement over this heuristic's "first to speak" guess,
+  // which is wrong whenever the patient speaks first. If the segments
+  // already carry exactly these two labels, trust them as-is instead
+  // of re-guessing and potentially flipping a correct labeling.
+  if (
+    uniqueSpeakers.length === 2 &&
+    uniqueSpeakers.every(
+      (speaker) => speaker === 'Doctor' || speaker === 'Patient',
+    )
+  ) {
+    return segments;
+  }
+
   const firstSpeaker = uniqueSpeakers[0];
   return segments.map((segment) => ({
     ...segment,
