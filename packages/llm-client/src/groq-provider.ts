@@ -1,10 +1,15 @@
 import type { ClinicalExtraction } from "@kal-scribe/types";
 import { clinicalExtractionSchema } from "@kal-scribe/validation";
-import { buildExtractionPrompt } from "./prompt.js";
-import type { LlmExtractionRequest, LlmProvider } from "./types.js";
+import { buildExtractionPrompt, EXTRACTION_PROMPT_VERSION } from "./prompt.js";
+import type {
+  ClinicalExtractionProvider,
+  ClinicalExtractionRequest,
+  ClinicalExtractionResult,
+} from "./types.js";
 
 const GROQ_CHAT_COMPLETIONS_URL =
   "https://api.groq.com/openai/v1/chat/completions";
+const TEMPERATURE = 0.2;
 
 interface GroqMessage {
   role: "system" | "user" | "assistant";
@@ -13,6 +18,11 @@ interface GroqMessage {
 
 interface GroqChatCompletionResponse {
   choices: Array<{ message: { content: string } }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 /**
@@ -25,7 +35,7 @@ interface GroqChatCompletionResponse {
  * retries once, with the validation error fed back to the model, if
  * it doesn't conform. See docs/adr/0011.
  */
-export class GroqProvider implements LlmProvider {
+export class GroqProvider implements ClinicalExtractionProvider {
   readonly name: string;
 
   constructor(
@@ -36,8 +46,9 @@ export class GroqProvider implements LlmProvider {
   }
 
   async extractClinicalData(
-    request: LlmExtractionRequest,
-  ): Promise<ClinicalExtraction> {
+    request: ClinicalExtractionRequest,
+  ): Promise<ClinicalExtractionResult> {
+    const t0 = Date.now();
     const { system, user } = buildExtractionPrompt(request.segments);
     const messages: GroqMessage[] = [
       { role: "system", content: system },
@@ -45,7 +56,9 @@ export class GroqProvider implements LlmProvider {
     ];
 
     const first = await this.callAndValidate(messages, request.transcriptId);
-    if (first.success) return first.data;
+    if (first.success) {
+      return this.buildResult(first, t0, 0, false);
+    }
 
     // One retry, with the validation failure fed back — LLM JSON-mode
     // output is "valid JSON" guaranteed, not "matches this exact
@@ -58,18 +71,52 @@ export class GroqProvider implements LlmProvider {
       },
     );
     const second = await this.callAndValidate(messages, request.transcriptId);
-    if (second.success) return second.data;
+    if (second.success) {
+      return this.buildResult(second, t0, 1, true);
+    }
 
     throw new Error(
       `Groq extraction did not produce schema-conforming JSON after retry: ${second.error}`,
     );
   }
 
+  private buildResult(
+    attempt: { success: true; data: ClinicalExtraction; raw: string; usage: GroqChatCompletionResponse["usage"] },
+    t0: number,
+    retryCount: number,
+    hadValidationRetry: boolean,
+  ): ClinicalExtractionResult {
+    return {
+      extraction: attempt.data,
+      metadata: {
+        model: this.model,
+        promptVersion: EXTRACTION_PROMPT_VERSION,
+        temperature: TEMPERATURE,
+        latencyMs: Date.now() - t0,
+        inputTokens: attempt.usage?.prompt_tokens ?? null,
+        outputTokens: attempt.usage?.completion_tokens ?? null,
+        totalTokens: attempt.usage?.total_tokens ?? null,
+        // Groq's per-token pricing varies by model and isn't returned
+        // in the response itself — computing this needs a maintained
+        // pricing table, a documented follow-up rather than a guess.
+        estimatedCostUsd: null,
+        retryCount,
+        hadValidationRetry,
+        rawResponse: attempt.raw,
+      },
+    };
+  }
+
   private async callAndValidate(
     messages: GroqMessage[],
     transcriptId: string,
   ): Promise<
-    | { success: true; data: ClinicalExtraction }
+    | {
+        success: true;
+        data: ClinicalExtraction;
+        raw: string;
+        usage: GroqChatCompletionResponse["usage"];
+      }
     | { success: false; error: string; raw: string }
   > {
     const res = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
@@ -82,7 +129,7 @@ export class GroqProvider implements LlmProvider {
         model: this.model,
         messages,
         response_format: { type: "json_object" },
-        temperature: 0.2,
+        temperature: TEMPERATURE,
       }),
     });
 
@@ -124,6 +171,6 @@ export class GroqProvider implements LlmProvider {
     if (!result.success) {
       return { success: false, raw, error: result.error.message };
     }
-    return { success: true, data: result.data };
+    return { success: true, data: result.data, raw, usage: body.usage };
   }
 }
