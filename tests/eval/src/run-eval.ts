@@ -3,7 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TranscriptSegment } from "@kal-scribe/types";
-import { loadLlmProvider } from "@kal-scribe/llm-client";
+import { loadClinicalExtractionProvider } from "@kal-scribe/llm-client";
 import type { EvalExpectation } from "./expectation.js";
 import { scoreExtraction } from "./score.js";
 
@@ -41,10 +41,13 @@ async function loadFixture(baseName: string): Promise<{
 }
 
 async function main(): Promise<void> {
-  const provider = loadLlmProvider({
-    LLM_PROVIDER: process.env.LLM_PROVIDER ?? "groq",
+  const provider = loadClinicalExtractionProvider({
+    EXTRACTION_PROVIDER: process.env.EXTRACTION_PROVIDER ?? "groq",
+    SPEECH_PROVIDER: process.env.SPEECH_PROVIDER,
     GROQ_API_KEY: process.env.GROQ_API_KEY,
     GROQ_MODEL: process.env.GROQ_MODEL,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_MODEL: process.env.GEMINI_MODEL,
   });
 
   const files = await readdir(fixturesDir);
@@ -60,7 +63,7 @@ async function main(): Promise<void> {
     console.log(`\n=== ${baseName} — ${fixture.expected.description} ===`);
     console.log(`provider: ${provider.name}`);
 
-    const extraction = await provider.extractClinicalData({
+    const { extraction } = await provider.extractClinicalData({
       transcriptId: fixture.transcriptId,
       segments: fixture.segments,
     });
