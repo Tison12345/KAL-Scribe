@@ -16,6 +16,7 @@ import type {
   StorageAdapter,
   UploadTarget,
 } from './storage.adapter';
+import { StorageObjectNotFoundError } from './storage.adapter';
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60;
 
@@ -74,6 +75,13 @@ export class SupabaseStorageAdapter implements StorageAdapter {
       .createSignedUrl(storageKey, SIGNED_URL_EXPIRY_SECONDS);
 
     if (error || !data) {
+      // Supabase wraps a missing object in an HTTP 400 envelope with
+      // statusCode "404" inside it (confirmed directly against a real
+      // bucket) — `error.status` alone would misreport this as a
+      // generic 400.
+      if (error && 'statusCode' in error && error.statusCode === '404') {
+        throw new StorageObjectNotFoundError(storageKey);
+      }
       throw new Error(`Supabase createSignedUrl failed: ${error?.message}`);
     }
 
