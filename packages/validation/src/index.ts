@@ -2,6 +2,7 @@ export {
   startRecordingSchema,
   requestChunkUploadSchema,
   completeUploadSchema,
+  updateRecordingAudioMetadataSchema,
 } from "./consultation-recording.schema.js";
 
 export { createTranscriptSchema } from "./consultation-transcript.schema.js";
