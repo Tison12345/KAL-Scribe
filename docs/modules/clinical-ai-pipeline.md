@@ -9,10 +9,9 @@ last_updated: 2026-07-18
 > describing the system **as it actually runs today**, not the
 > original plan. For the original design blueprint and rationale, see
 > `docs/architecture.md`. For why specific technical choices were made
-> (Gemini over the classic pipeline, Supabase, pg-boss, the extraction
-> schema itself), see `docs/adr/0013`–`0015` and
-> `docs/modules/clinical-extraction-schema.md`. For the current
-> project state, see `docs/PROJECT_STATUS.md`.
+> (Gemini, Supabase, pg-boss, the extraction schema itself), see
+> `docs/adr/0013`–`0015` and `docs/modules/clinical-extraction-schema.md`.
+> For the current project state, see `docs/PROJECT_STATUS.md`.
 
 ## Purpose
 
@@ -21,8 +20,7 @@ what's used at each stage, exactly how audio gets chunked/uploaded/
 stitched, and exactly how the LLM turns a transcript into a structured
 clinical record. It exists because `docs/architecture.md`'s pipeline
 sections (§3, §7, §8, §9) describe the *original pre-build design*
-(WhisperX + Pyannote, two LLM passes, generic placeholder schema) and
-have since been substantially superseded by real implementation
+and have since been substantially superseded by real implementation
 decisions — rather than rewriting that historical document line by
 line, this doc is the current, accurate replacement for "how the
 pipeline works," cross-referenced from `architecture.md` at each stale
@@ -38,16 +36,14 @@ section.
 | Database | Postgres (Supabase-hosted) via Drizzle ORM | No local dev stand-in — ADR-0014 |
 | Object storage | Supabase Storage | Signed upload/read URLs only, browser never gets a permanent URL |
 | Job queue | **pg-boss** (Postgres-native) | Not Redis/BullMQ — ADR-0015 |
-| Speech understanding (transcription + diarization) | **Google Gemini** (`gemini-2.5-flash` by default), audio-native | Default path. Classic fallback: WhisperX + Pyannote (`python/asr-service`) if `SPEECH_PROVIDER` is unset — ADR-0013 |
-| Clinical extraction | **Google Gemini** (same model) or Groq-hosted Llama | Selected via `EXTRACTION_PROVIDER` |
+| Speech understanding (transcription + diarization) | **Google Gemini** (`gemini-2.5-flash` by default), audio-native | One call handles both — ADR-0013 |
+| Clinical extraction | **Google Gemini** (`gemini-2.5-flash` by default) | Selected via `EXTRACTION_PROVIDER` |
 | Validation | Zod (`packages/validation`) | Every LLM output is schema-validated post-hoc, regardless of vendor "JSON mode" guarantees |
 
 The two provider interfaces (`SpeechUnderstandingProvider`,
 `ClinicalExtractionProvider`, `packages/llm-client/src/types.ts`) are
 selected independently via `SPEECH_PROVIDER` and `EXTRACTION_PROVIDER`
-env vars — a single vendor doesn't have to fill both roles. Today,
-only `GeminiProvider` implements `SpeechUnderstandingProvider`;
-`GroqProvider` implements only `ClinicalExtractionProvider`.
+env vars — a single vendor doesn't have to fill both roles.
 
 ## End-to-end flow
 
@@ -231,46 +227,36 @@ is done reading it, whether transcription succeeded or failed.
 **File:** `workers/clinical-ai-worker/src/main.ts` (`processTranscriptionJob`),
 `packages/llm-client/src/gemini-provider.ts`
 
-If `SPEECH_PROVIDER=gemini` is set, `GeminiProvider.transcribeAudio()`
-is called directly on the stitched buffer — **no separate STT or
-diarization service runs at all**. The audio is sent as inline base64
-bytes in a single Gemini `generateContent` call:
+`GeminiProvider.transcribeAudio()` is called directly on the stitched
+buffer — **no separate STT or diarization service runs at all**. The
+audio is sent as inline base64 bytes in a single Gemini
+`generateContent` call:
 
 ```json
 { "inline_data": { "mime_type": "audio/webm", "data": "<base64>" } }
 ```
 
 alongside a short instruction to transcribe and diarize. This call
-**does** use Gemini's native `responseSchema` (JSON-schema-constrained
+uses Gemini's native `responseSchema` (JSON-schema-constrained
 output) — the schema requires each segment to have a `speaker` field
 constrained to the enum `["Doctor", "Patient"]`, so Gemini itself
 enforces the two-speaker labeling shape, not a post-hoc heuristic.
 Gemini labels speakers **semantically** (who's asking clinical
-questions vs. answering them), not by turn-order guessing — a real
-improvement over the classic pipeline's diarization, which produces
-anonymous speaker clusters that need a separate labeling heuristic.
+questions vs. answering them), not by turn-order guessing.
 
 Capped at **19MB** of inline audio (`MAX_INLINE_AUDIO_BYTES`, Gemini's
 hard `inline_data` limit is 20MB — the code leaves headroom and throws
 rather than silently truncating a longer recording; Gemini's File API
 for larger audio isn't implemented yet, a known follow-up).
 
-**If `SPEECH_PROVIDER` is unset**, the worker falls back to the
-classic path: `POST` the stitched audio to `ASR_SERVICE_URL`
-(`python/asr-service`, FastAPI), which runs **WhisperX** for
-speech-to-text and **Pyannote** for diarization, then merges Whisper's
-word-level timestamps with Pyannote's speaker-turn boundaries. In this
-path, `sttProvider = "whisperx"` and `diarizationProvider = "pyannote"`
-are recorded per-transcript; in the Gemini path, both are recorded as
-`"gemini/{model}"` since one model does both jobs.
-
-Either way, the result — a `TranscriptSegment[]` of
-`{ speaker, text, start, end }` — is persisted via `POST
-/clinical-ai/recordings/:id/transcript` as a `consultation_transcripts`
-row, along with `languageDetected`, `isMultilingual`/`isCodeSwitched`
-(Gemini-only — the classic path can't determine these), the raw
-provider response, and transcription latency. The worker then
-immediately enqueues the `extraction` job for the same recording.
+The result — a `TranscriptSegment[]` of `{ speaker, text, start, end }`
+— is persisted via `POST /clinical-ai/recordings/:id/transcript` as a
+`consultation_transcripts` row, along with `languageDetected`,
+`isMultilingual`/`isCodeSwitched`, the raw provider response, and
+transcription latency (`sttProvider`/`diarizationProvider` are both
+recorded as `"gemini/{model}"`, since one model does both jobs). The
+worker then immediately enqueues the `extraction` job for the same
+recording.
 
 ## 5. Clinical extraction
 

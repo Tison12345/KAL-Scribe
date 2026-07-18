@@ -80,12 +80,11 @@ Short version (full detail in §17): this repo ships a `clinical-ai` NestJS modu
 ## 3. Overall Architecture
 
 > **Diagram/topology below is the original pre-build design.** The
-> deployed default today: Gemini replaces the WhisperX+Pyannote/queue
-> boundary shown below for both STT and diarization in one call
-> (ADR-0013), Redis/BullMQ is pg-boss (ADR-0015), and object storage
-> is Supabase (ADR-0014) rather than a generic "S3-compatible" choice.
-> See `docs/modules/clinical-ai-pipeline.md` for the current, accurate
-> flow diagram and stage-by-stage detail.
+> deployed default today: Gemini handles both STT and diarization in
+> one call (ADR-0013), Redis/BullMQ is pg-boss (ADR-0015), and object
+> storage is Supabase (ADR-0014) rather than a generic
+> "S3-compatible" choice. See `docs/modules/clinical-ai-pipeline.md`
+> for the current, accurate flow diagram and stage-by-stage detail.
 
 ### 3.1 System context
 
@@ -334,9 +333,9 @@ Any place this module's UI genuinely needs something the existing guidelines don
 > used, ffmpeg stream-copy stitching, the "stop on first 404" chunk-
 > count mechanism) and exactly how the LLM extraction call works
 > (prompt rules, schema validation/retry, confidence). The stages
-> below describe the original two-LLM-pass, WhisperX+Pyannote design;
-> the deployed default today is Gemini doing STT+diarization in one
-> audio-native call (stage 5–6 below collapse into one), and a single
+> below describe the original two-LLM-pass design; the deployed
+> default today is Gemini doing STT+diarization in one audio-native
+> call (stage 5–6 below collapse into one), and a single
 > extraction call (stage 8–9 below are one call, not two) — ADR-0013.
 
 ```mermaid
@@ -377,10 +376,9 @@ flowchart LR
 
 > **Historical evaluation — kept for the reasoning, but Gemini has
 > since become the deployed default** for speech understanding
-> (ADR-0013), evaluated after this table was written. WhisperX
-> (`python/asr-service`) remains as an alternate path when
-> `SPEECH_PROVIDER` is unset. See `docs/modules/clinical-ai-pipeline.md`
-> §4 for how the current default actually works.
+> (ADR-0013), evaluated after this table was written. See
+> `docs/modules/clinical-ai-pipeline.md` §4 for how the current
+> default actually works.
 
 | | Google Speech-to-Text | Whisper (self/API-hosted) | WhisperX |
 |---|---|---|---|
@@ -404,11 +402,10 @@ The `infrastructure/asr-service.adapter.ts` in NestJS talks to `python/asr-servi
 
 ## 9. Speaker Diarization
 
-> **Describes the classic Pyannote-based path, still available as the
-> fallback when `SPEECH_PROVIDER` is unset.** The deployed default
-> (Gemini, ADR-0013) does diarization differently — it labels
-> speakers *semantically* ("Doctor" vs "Patient" based on who's
-> asking clinical questions) directly via a Gemini-native
+> **Describes the pre-build design's diarization approach.** The
+> deployed default (Gemini, ADR-0013) does diarization differently —
+> it labels speakers *semantically* ("Doctor" vs "Patient" based on
+> who's asking clinical questions) directly via a Gemini-native
 > `responseSchema` enum constraint, not via the anonymous-cluster +
 > separate-labeling-heuristic approach described below. See
 > `docs/modules/clinical-ai-pipeline.md` §4.

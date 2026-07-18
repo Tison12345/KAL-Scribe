@@ -29,9 +29,6 @@ design blueprint and every non-obvious decision made since, see
   project. See ADR-0014.
 - **Job queue: pg-boss**, running on the same Postgres database —
   no Redis, no separate queue service. See ADR-0015.
-- **Classic pipeline (WhisperX + Pyannote + Groq) still exists** as an
-  alternate path (`python/asr-service`, `GROQ_*`/`SPEECH_PROVIDER`
-  unset) but is not the default deployment target.
 
 ## Prerequisites
 
@@ -93,13 +90,10 @@ Then open `http://localhost:3000`.
   pg-boss jobs: fetches + stitches uploaded chunks, calls the
   speech-understanding provider, calls the clinical-extraction
   provider, reports status back to `apps/api` over HTTP
-- `python/asr-service` — FastAPI service running WhisperX (STT) +
-  Pyannote (diarization); only used when `SPEECH_PROVIDER` is unset
 - `packages/types`, `packages/validation`, `packages/config` — shared
   TypeScript types, zod schemas, and typed env parsing
-- `packages/llm-client` — provider-abstracted clients for speech
-  understanding and clinical extraction (`GeminiProvider`,
-  `GroqProvider`)
+- `packages/llm-client` — provider-abstracted client for speech
+  understanding and clinical extraction (`GeminiProvider`)
 - `tests/eval` — accuracy eval harness (not unit tests) that runs
   extraction against fixed transcript fixtures and scores field
   accuracy
