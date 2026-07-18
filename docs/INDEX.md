@@ -40,6 +40,9 @@ deleted.
 - [`0010-worker-http-client-not-nestjs-import.md`](adr/0010-worker-http-client-not-nestjs-import.md) — worker calls apps/api over HTTP, not by importing NestJS use-cases
 - [`0011-llm-extraction-implementation-choices.md`](adr/0011-llm-extraction-implementation-choices.md) — implementation choices for the clinical-extraction LLM call
 - [`0012-whisperx-gpu-cuda-float16.md`](adr/0012-whisperx-gpu-cuda-float16.md) — switched WhisperX to GPU (CUDA/float16), ~6.1x faster than CPU
+- [`0013-gemini-single-model-poc.md`](adr/0013-gemini-single-model-poc.md) — clinical-ai-single branch: Gemini called directly (not via OpenRouter), replaces asr-service entirely, model choice, semantic speaker labeling
+- [`0014-mvp-supabase-postgres-and-storage.md`](adr/0014-mvp-supabase-postgres-and-storage.md) — removed PGlite/local-disk stand-ins for real Supabase, split consultation_ai_results into versioned runs+reviews, renamed provider interfaces
+- [`0015-pg-boss-not-bullmq.md`](adr/0015-pg-boss-not-bullmq.md) — replaced BullMQ/Redis with pg-boss (Postgres-native queue) after repeated Redis quota exhaustion
 - [`adr-template.md`](adr/adr-template.md) — shape to copy for a new ADR
 - [`README.md`](adr/README.md) — rules for this folder
 
@@ -68,6 +71,12 @@ to an old one.
 - [`2026-07-06-ci-lint-before-build-ordering-fix.md`](log/2026-07-06-ci-lint-before-build-ordering-fix.md) — fixed CI running lint before build, causing spurious `no-unsafe-*` errors
 - [`2026-07-07-headers-timeout-bug-fix.md`](log/2026-07-07-headers-timeout-bug-fix.md) — real root cause of the long-audio timeout bug: undici's `headersTimeout`, not the `AbortSignal`
 - [`2026-07-07-gpu-speed-test.md`](log/2026-07-07-gpu-speed-test.md) — GPU vs. CPU timing comparison, ~6.1x speedup (see ADR-0012)
+- [`2026-07-09-extraction-schema-field-audit.md`](log/2026-07-09-extraction-schema-field-audit.md) — second-pass field audit against the real CMS form, schema 2.0 → 2.1
+- [`2026-07-09-redis-quota-exhausted.md`](log/2026-07-09-redis-quota-exhausted.md) — stale `packages/types` dist rebuilt; Upstash Redis free-tier quota exhausted, blocking the job queue
+- [`2026-07-09-diagnosis-notes-mandatory-and-stale-extraction-bug.md`](log/2026-07-09-diagnosis-notes-mandatory-and-stale-extraction-bug.md) — relaxed diagnosis/made clinical-notes mandatory; fixed a stale-extraction-result query bug found along the way
+- [`2026-07-13-gemini-single-model-poc.md`](log/2026-07-13-gemini-single-model-poc.md) — clinical-ai-single branch: `GeminiProvider` wired in for both transcription and extraction, not yet tested against a real recording
+- [`2026-07-15-mvp-supabase-and-versioned-runs.md`](log/2026-07-15-mvp-supabase-and-versioned-runs.md) — real Supabase Postgres/Storage, versioned AI runs/reviews/sessions schema, renamed provider interfaces
+- [`2026-07-18-pg-boss-not-bullmq.md`](log/2026-07-18-pg-boss-not-bullmq.md) — replaced BullMQ/Redis with pg-boss, worker now reports job status over HTTP instead of Redis pub/sub
 - [`_template.md`](log/_template.md) — shape to copy for a new log entry
 - [`README.md`](log/README.md) — rules for this folder
 
@@ -88,6 +97,11 @@ to its current shape, see the log entries above instead.
 ## Runbooks (`runbooks/`)
 
 - [`performance-benchmarks.md`](runbooks/performance-benchmarks.md) — real pipeline timing data points (CPU-only baseline + extrapolation); GPU numbers live in ADR-0012/the 2026-07-07 log entry instead, kept separate since it's a different hardware baseline
+
+## Presentation reference (point-in-time snapshots, not living docs)
+
+- [`demo-architecture-overview.md`](demo-architecture-overview.md) — architecture, setup, and models currently in use (2026-07-09/10 snapshot), written for showing to a non-engineer stakeholder
+- `demo-architecture-diagram.html` — companion Mermaid diagram (self-contained, Mermaid.js inlined for offline/CSP-safe viewing) of the same architecture, open directly in a browser
 
 ## Elsewhere in the repo
 

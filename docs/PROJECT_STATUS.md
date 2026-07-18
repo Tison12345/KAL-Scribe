@@ -5,11 +5,151 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-07-06 — Extraction schema rebuilt against the
-real clinical form (not architecture.md §11's original placeholder),
-verified against real recordings
+**Last updated:** 2026-07-18 — `clinical-ai-single` branch: replaced
+BullMQ/Redis with pg-boss (Postgres-native queue) after Redis's
+free-tier quota was exhausted twice during testing. No hosted Redis
+dependency remains anywhere in this repo. Verified end-to-end against
+real Supabase Postgres: job creation, worker pickup, HTTP-based status
+reporting, and native retry/dead-letter routing all confirmed working.
 
 ## One-paragraph summary
+
+**2026-07-18 (`clinical-ai-single` branch)**: replaced BullMQ + hosted
+Upstash Redis with pg-boss, a Postgres-native job queue running on the
+same Supabase database this repo already requires — one fewer hosted
+service, one fewer quota to exhaust (Redis's free-tier request quota
+had been exhausted twice during testing purely from BullMQ's own
+chatty heartbeat/retry traffic, `docs/log/2026-07-09-redis-quota-exhausted.md`).
+`apps/api` is now the sole queue producer (`QueueModule` wraps a single
+producer-only `PgBoss` instance); `workers/clinical-ai-worker` is the
+sole consumer, running its own `PgBoss` instance and connecting
+directly to `DATABASE_URL` (a narrow, documented exception to
+ADR-0010's "worker never touches Postgres directly" rule — pg-boss's
+own job tables are queue-engine internals, not this repo's domain
+data). Four queues instead of three (each source queue gets its own
+dead-letter queue, since a shared DLQ across two different payload
+shapes would need a runtime discriminant). The bigger design change:
+BullMQ's Redis-backed `QueueEvents` gave apps/api a passive
+cross-process event stream for job status; pg-boss has no equivalent,
+so the worker now actively reports each transition via a new `PATCH
+/clinical-ai/admin/jobs/:id/status` call, extending ADR-0010's
+"worker talks to apps/api over HTTP" boundary to status reporting too.
+Also decoupled pg-boss's own job id from `consultation_ai_jobs.id` —
+the tracking row id now travels inside the job payload itself
+(`jobId`), avoiding a reprocessing collision risk that forcing the two
+ids to match would have created. `consultation_ai_jobs.bullmq_job_id`
+renamed to `queue_job_id`; migration history regenerated as a clean
+baseline (no production data exists yet, same convention used for
+ADR-0014). Full reasoning in `docs/adr/0015-pg-boss-not-bullmq.md`,
+file-by-file summary in `docs/log/2026-07-18-pg-boss-not-bullmq.md`.
+**Verified**: full workspace typecheck/build/lint all pass; migration
+applied cleanly against real Supabase Postgres; all three processes
+(apps/api, the worker, apps/web) restart cleanly with zero Redis
+references anywhere in their logs; a real recording pushed through the
+actual HTTP endpoints (`start` → `chunks` → `complete`) correctly
+enqueued a transcription job via `boss.send()`, the worker picked it up
+via `boss.work()`, reported `active` then `failed` over the new status
+endpoint (failure was an unrelated pre-existing multi-chunk-fetch path
+tripped by the test's single-chunk upload, not a pg-boss defect), and
+pg-boss's own retry schedule (`retryDelay: 60`, no application code
+re-enqueueing) re-attempted the job on schedule — confirming retry/
+backoff works without Redis. **Not yet verified**: a full successful
+pipeline run (multi-chunk upload → transcript → extraction → review
+draft) through the new queue — this session's live test deliberately
+exercised the failure/retry path since that's the part pg-boss changed
+most; a happy-path run is still worth doing.
+
+**2026-07-15 (`clinical-ai-single` branch)**: moved from "PoC run with
+manual test scripts" toward MVP. Removed PGlite and local-disk storage
+entirely (not kept as fallbacks) in favor of a real Supabase project
+from day one — `apps/api` now requires `DATABASE_URL` and a
+`SupabaseStorageAdapter` replaces the deleted local-disk stand-in
+behind the same `StorageAdapter` interface. Redesigned the data model:
+the old single `consultation_ai_results` table is split into
+`consultation_ai_runs` (immutable AI output, versioned with a stable
+`run_number`) and `consultation_reviews` (mutable doctor workflow
+state), with a new `consultation_ai_sessions` root entity above
+recordings (enables multiple recordings per consultation) and
+`consultation_ai_audit_log` finally implemented (architecture.md §12
+specified it back at the start; never built until now). Every run now
+carries provider/model/prompt-version/latency/token/cost/confidence
+metadata plus the pre-parse raw response. Renamed the provider
+interfaces to job-based names (`ClinicalExtractionProvider`/
+`SpeechUnderstandingProvider`, was `LlmProvider`/`AudioTranscriptionProvider`)
+and added per-run provider override support (`requestedProvider`) —
+`consultation_ai_runs.run_number` was originally motivated by "run this
+consultation again against Claude/Groq for comparison," which needed
+this to actually be reachable, not just representable in the schema.
+Also added ffprobe-based audio metadata capture and a derived
+`GetConsultationAnalyticsUseCase` (speaking %/silence %/latency,
+computed on read, never cached). Full reasoning in
+`docs/adr/0014-mvp-supabase-postgres-and-storage.md`, file-by-file
+summary in `docs/log/2026-07-15-mvp-supabase-and-versioned-runs.md`.
+**Verified**: migrations applied cleanly against a real Supabase
+Postgres instance (session pooler, port 5432); full workspace
+build/lint/typecheck all pass. Supabase Storage verified end-to-end
+directly against `SupabaseStorageAdapter`'s own calls (signed upload →
+real `PUT` → signed read → real `GET` → cleanup), including creating
+the `consultation-audio` bucket itself since it didn't exist yet. Along
+the way, discovered the project uses Supabase's current-generation API
+keys (`sb_secret_...`) rather than the legacy `service_role` JWT —
+renamed `SUPABASE_SERVICE_ROLE_KEY` → `SUPABASE_SECRET_KEY` throughout
+to match (confirmed as a documented drop-in replacement, same
+permissions). **Not yet verified**: a full pipeline run against the new
+schema (record → upload → transcribe → extract → review) — only the
+schema/migrations/storage adapter were exercised directly so far, not
+a live recording through the actual worker/queue.
+
+**2026-07-13 (`clinical-ai-single` branch, diverges from the mainline
+summary below)**: new branch testing whether a single Gemini call can
+replace transcription+diarization+extraction end-to-end. Built
+`GeminiProvider` (`packages/llm-client`) implementing both the existing
+extraction interface and a new `AudioTranscriptionProvider` interface;
+the worker now skips `python/asr-service` entirely and sends audio
+straight to Gemini when `LLM_PROVIDER=gemini`, while `LLM_PROVIDER=groq`
+still runs the unmodified classic pipeline — the two are switchable via
+one env var, not a rewrite. Model choice: `gemini-2.5-flash` (GA, not a
+preview build). Chose to call Gemini's API directly rather than through
+OpenRouter after checking OpenRouter's audio support — its unified
+schema doesn't expose Gemini's native `responseSchema`/File API, which
+would confound a PoC specifically judging Gemini's real capability. One
+functional improvement over the classic pipeline: Gemini labels
+"Doctor"/"Patient" semantically from what's said rather than "first to
+speak = Doctor" turn-order guessing, which required a small guard fix
+in the shared labeling heuristic so it doesn't override a correct
+semantic label. Full reasoning in `docs/adr/0013-gemini-single-model-poc.md`,
+file-by-file summary in `docs/log/2026-07-13-gemini-single-model-poc.md`.
+**Verified against a real recording**: reused the existing ~7m19s
+digestion-consultation audio already in local storage, called
+`GeminiProvider` directly (bypassing the queue — not yet a full
+worker/UI click-through). Transcription: 42.3s, 80 correctly
+Doctor/Patient-labeled segments. Extraction: 34.6s, schema-conforming on
+the first attempt, correct diagnosis/medicines/dosages/follow-up, and
+correctly left every physical-exam field null since none were stated
+aloud — the same hallucination-avoidance behavior the classic pipeline
+required real prompt engineering to achieve, here for free on the first
+real test. One unexplained ~40s gap in transcript segment coverage
+worth a closer look. Full BullMQ pipeline run + `ReviewDraftPanel`
+click-through with this provider still hasn't happened.
+
+**2026-07-09**: a second, more literal pass re-verified the 2026-07-06
+extraction schema option-by-option against the CMS's actual source
+(rather than trusting that pass's own "verified" claim) and found real
+discrepancies: 5 of 8 Ashtavidha option lists were wrong (the CMS
+reworked them in a 2026-06-22 commit this repo's schema didn't fully
+track), Personal History's `bowel` was single-select with invented
+options instead of the real 8-option multi-select, `exercise` had an
+invented option, `treatments[].oilTempF` was typed as a Fahrenheit
+number when the live form is actually a categorical Ayurvedic-term
+dropdown, and `vitals.bpPosition` turned out to be a fully invented
+field with no input anywhere in the live form. All fixed across
+`packages/types`/`validation`/`llm-client`/`ReviewDraftPanel.tsx`;
+schema version bumped to 2.1. One live file collision with the other
+concurrently-active session occurred and was caught and repaired
+mid-edit — see `docs/log/2026-07-09-extraction-schema-field-audit.md`
+for the full account, root-cause note, and the two items deliberately
+left unmodeled (medicine `timing`'s `consumptionMode` conditional,
+treatment `bodyPart`'s Full-Body/Local/body-map structure).
 
 Milestones 1–8 are done. The pipeline now runs all the way from
 recording to a **doctor-reviewable, editable AI draft**: record →
@@ -140,8 +280,16 @@ one rule yet, a documented open item, not a code bug).
 
 ## In progress
 
-- Nothing — Milestone 8's scoped work (including the terminal-state
-  fix) is complete.
+- **`clinical-ai-single` branch**: pg-boss migration (ADR-0015) done
+  and verified against real Supabase Postgres (job creation, worker
+  pickup, HTTP status reporting, retry/backoff all confirmed on a real
+  failure path). Remaining: a full *successful* pipeline run (record →
+  multi-chunk upload → transcribe → extract → review) through the new
+  queue — this session verified the failure/retry path deliberately,
+  not yet a clean happy-path run through the new sessions/runs/reviews
+  tables end-to-end.
+- Otherwise nothing on the mainline pipeline — Milestone 8's scoped work
+  (including the terminal-state fix) is complete.
 
 ## Not started
 
@@ -158,6 +306,63 @@ one rule yet, a documented open item, not a code bug).
 
 ## Known issues / risks
 
+- **2026-07-09, same day, three more incidents**: (1) local PGlite
+  database corrupted by an ad-hoc script opening a second concurrent
+  connection to `.data/pglite` while the live api server had it open
+  — PGlite is single-process-only, unlike a real Postgres server;
+  recovered by moving the corrupted dir aside
+  (`.data/pglite-corrupted-2026-07-09`) and letting migrations
+  recreate an empty one, which meant losing all local recording
+  history (raw audio in `.data/storage/` was untouched). (2) Groq's
+  free-tier 12,000 TPM limit was hit repeatedly on a 7-minute
+  consultation's extraction call (~6,700-7,600 tokens/attempt, rapid
+  BullMQ retries kept re-consuming the same per-minute budget) —
+  swapped `GROQ_MODEL` to `llama-3.1-8b-instant` (much higher token
+  ceiling, but confirmed less reliable on synthesis-heavy fields like
+  diagnosis/notes — see next item). (3) `modernDiagnosis`/
+  `clinicalNotes` coming back null/empty led to relaxing the
+  diagnosis prompt rule and making clinical notes genuinely mandatory
+  (schema `.min(1)` + retry-with-feedback), which in turn surfaced an
+  unrelated pre-existing bug: `ConsultationAiResultRepository
+  .findByRecordingId()` had no `ORDER BY`, so a recording with more
+  than one extraction attempt could non-deterministically return a
+  stale result — fixed with `ORDER BY created_at DESC`. Full account:
+  `docs/log/2026-07-09-redis-quota-exhausted.md`,
+  `docs/log/2026-07-09-diagnosis-notes-mandatory-and-stale-extraction-bug.md`.
+- **`packages/types`' compiled `dist/` was stale as of 2026-07-09,
+  now rebuilt** — the source-level `oilTempF`/`bpPosition` fixes above
+  weren't reflected in the compiled output apps/api and the worker
+  actually import at runtime until `pnpm --filter @kal-scribe/types
+  --filter @kal-scribe/validation --filter @kal-scribe/llm-client
+  build` ran and both were restarted. Same class of gap as the
+  2026-07-06 CI ordering bug below — `nest --watch`/`tsx watch` only
+  rewatch their own app's source, never a workspace dependency's
+  `dist/`, so a schema change in `packages/types` silently doesn't
+  reach a running dev server until an explicit rebuild + restart.
+- **Upstash Redis free-tier request quota exhausted (2026-07-09) —
+  resolved 2026-07-18 by removing Redis entirely**
+  (`docs/adr/0015-pg-boss-not-bullmq.md`); rest of this entry kept for
+  history, no longer an active risk.
+  `apps/api` and the worker both started failing to even authenticate
+  to Redis (`ERR max requests limit exceeded. Limit: 500000, Usage:
+  500006`). Redis is what backs the BullMQ job queue connecting "a
+  recording finished uploading" (apps/api enqueues) to "go transcribe
+  it" (the worker consumes) — every job add/heartbeat/retry/completion
+  is one or more real Redis commands, and BullMQ is chatty by design.
+  Web/API/asr-service all still respond to plain HTTP (not everything
+  looked broken), but any *new* recording would silently never process
+  since the queue itself can't be written to. Root cause: cumulative
+  usage across many days of testing, repeated retries from earlier
+  bugs, the frontend's `usePipelineProgress` polling (recall the
+  "2867 requests" observation from a much earlier session), and a
+  stretch where duplicate worker/api processes were briefly running
+  simultaneously (docs/log/2026-07-07-headers-timeout-bug-fix.md),
+  each holding its own Redis connection. User is creating a fresh
+  Upstash instance; `REDIS_URL` needs updating in both `apps/api/.env`
+  and `workers/clinical-ai-worker/.env` once ready. No local-Redis
+  dev stand-in exists yet (unlike Postgres/storage, ADR-0007/0008) —
+  worth considering so dev/test traffic stops burning a shared cloud
+  quota at all.
 - **CI build order fixed (2026-07-06)**: `.github/workflows/ci.yml` ran
   `lint` before `build`, so `@kal-scribe/types`/`@kal-scribe/validation`
   (typed via `dist/index.d.ts`) had no `dist/` yet on a fresh checkout,
@@ -276,9 +481,10 @@ one rule yet, a documented open item, not a code bug).
   `docs/adr/0007-local-disk-storage-standin.md`
 - Postgres (local dev stand-in): embedded PGlite —
   `docs/adr/0008-local-postgres-standin-pglite.md`
-- Redis: real hosted Upstash instance (no local stand-in exists for
-  BullMQ) — see `apps/api/.env.example` / `workers/
-  clinical-ai-worker/.env.example`.
+- Queue: **pg-boss (Postgres-native), not BullMQ/Redis** — runs on the
+  same `DATABASE_URL` as everything else, no hosted Redis dependency
+  remains — `docs/adr/0015-pg-boss-not-bullmq.md`. Supersedes the
+  BullMQ/Upstash-Redis line this entry used to have.
 - Diarization: Pyannote — now running the **primary**
   `speaker-diarization-3.1` model (gated-terms access granted
   2026-07-06, including its `segmentation-3.0` dependency), replacing
@@ -295,7 +501,9 @@ one rule yet, a documented open item, not a code bug).
   choice).
 - Extraction schema: rebuilt against the real clinical form
   (`C:\KAL-clinic-management-solution`), superseding architecture.md
-  §11's original placeholder — `docs/modules/clinical-extraction-schema.md`
+  §11's original placeholder, **now at version 2.1 as of 2026-07-09**
+  after a second audit pass corrected several option-string/type
+  mismatches the initial rebuild missed — `docs/modules/clinical-extraction-schema.md`
   is now the authoritative reference, no ADR needed (this corrects an
   earlier draft to match the actual integration target, not a new
   design choice).

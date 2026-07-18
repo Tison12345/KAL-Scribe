@@ -415,7 +415,22 @@ The extraction schema (§11), not the vendor, is this module's real intellectual
 - No graceful fallback if a provider has an outage during clinic hours.
 - No easy step-up path (start on Groq+Llama for cost/speed, move specific low-confidence cases to Claude for a second opinion — a realistic future flow, see §19).
 
-**Design:** `infrastructure/llm-provider.adapter.ts` implements one interface — `extractClinicalData(transcript, schema) -> ClinicalExtraction` — with concrete implementations per vendor (`groq.provider.ts`, `claude.provider.ts`, `openai.provider.ts`, ...) selected via env var (`LLM_PROVIDER=groq`), exactly mirroring the STT provider-independence pattern in §8 and Repo B's existing notification-channel-adapter pattern. The JSON Schema passed to every provider is the *same* schema (§11) regardless of vendor — that schema is the contract this whole module is built around, and it must never be vendor-specific.
+**Design:** `packages/llm-client` implements one interface — `ClinicalExtractionProvider.extractClinicalData(request) -> { extraction, metadata }` — with concrete implementations per vendor (`groq-provider.ts`, `gemini-provider.ts`, future `claude-provider.ts`, ...) selected via `EXTRACTION_PROVIDER` env var, exactly mirroring the STT provider-independence pattern in §8 and Repo B's existing notification-channel-adapter pattern. The JSON Schema passed to every provider is the *same* schema (§11) regardless of vendor — that schema is the contract this whole module is built around, and it must never be vendor-specific.
+
+**Renamed from `LlmProvider`/`LLM_PROVIDER` as of 2026-07-15 (ADR-0014)**
+— "LLM" was never accurate for the parallel speech-understanding
+interface (`SpeechUnderstandingProvider`, selected via
+`SPEECH_PROVIDER`), and both names are job-based rather than
+model-kind-based so a future non-LLM implementation (e.g. a
+traditional STT vendor) fits without another rename. `EXTRACTION_PROVIDER`/
+`SPEECH_PROVIDER` are separate env vars, not one — a single vendor
+(Groq) can do only one of the two jobs, so one var conflating both
+roles was already awkward before the split. `loadClinicalExtractionProvider`
+accepts an optional per-call `providerOverride`, letting one specific
+extraction run target a different vendor than the deployment default —
+what makes re-running a consultation against a different provider for
+comparison (`consultation_ai_runs.run_number`, §12) an actual capability
+rather than just a schema field.
 
 ---
 
@@ -456,19 +471,47 @@ forward unchanged into the real schema:
 
 ## 12. Database Design
 
-Only tables owned by this repo. (CMS-owned tables — `patients`, `appointments`, `consultations`, `prescriptions` — are read/written only through the integration adapter in §17, never modeled here.)
+**Materially updated 2026-07-15 (ADR-0014)** — this section now reflects
+the versioned-runs/sessions redesign, superseding the original
+single-`consultation_ai_results` shape below. Only tables owned by this
+repo. (CMS-owned tables — `patients`, `appointments`, `consultations`,
+`prescriptions` — are read/written only through the integration adapter
+in §17, never modeled here.)
+
+Hierarchy: `consultation_ai_sessions` → `consultation_recordings` →
+`consultation_transcripts` → `consultation_ai_runs` (immutable AI
+output) + `consultation_reviews` (mutable doctor workflow state) → a
+CMS prescription (still just an opaque ref, never a table here).
+
+### `consultation_ai_sessions`
+
+This repo's own root grouping entity — deliberately not named
+`consultation_sessions` to avoid any confusion with the CMS's own
+session/appointment record (zero-FK rule below). Enables multiple
+recordings per consultation (pause/resume) and multiple AI runs per
+consultation.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | uuid, PK | |
+| `consultation_session_ref` | text | Opaque reference to the CMS-side appointment/consultation (§17 — this repo does not own or validate this beyond storing it) |
+| `doctor_id_ref` | text | Opaque CMS user reference |
+| `status` | enum | `active` \| `completed` \| `abandoned` |
+| `started_at` / `ended_at` | timestamptz, nullable | |
+| `created_at` / `updated_at` | timestamptz | |
 
 ### `consultation_recordings`
 
 | Field | Type | Notes |
 |---|---|---|
 | `id` | uuid, PK | |
-| `consultation_session_ref` | text | Opaque reference to the CMS-side appointment/consultation this recording belongs to (§17 — this repo does not own or validate this beyond storing it) |
-| `doctor_id_ref` | text | Opaque CMS user reference, for audit and access control |
+| `session_id` | uuid, FK → `consultation_ai_sessions.id` | |
+| `sequence_in_session` | integer | Pause/resume ordering within a session (0 = first) |
 | `status` | enum | `recording` \| `uploading` \| `uploaded` \| `processing_failed` \| `processed` |
 | `storage_key` | text | Path/key in object storage (§14) |
 | `duration_seconds` | integer, nullable | Populated once finalized |
-| `consent_confirmed` | boolean | Must be `true` before any processing job is enqueued — see §15 |
+| `sample_rate_hz` / `channels` / `codec` / `file_size_bytes` | nullable | Populated post-stitch via ffprobe — informational, for debugging |
+| `consent_confirmed` | boolean | Recording-scoped, not session-scoped — re-confirmed on every resume, not just once at session start (§15) |
 | `consent_confirmed_at` | timestamptz, nullable | |
 | `created_at` / `updated_at` | timestamptz | |
 | `deleted_at` | timestamptz, nullable | Soft-delete, respecting retention policy (§14) |
@@ -480,12 +523,18 @@ Only tables owned by this repo. (CMS-owned tables — `patients`, `appointments`
 | `id` | uuid, PK | |
 | `recording_id` | uuid, FK → `consultation_recordings.id` | |
 | `segments` | jsonb | Array of `{ speaker, text, start_time, end_time, word_confidence }` — the merged STT+diarization output (§9) |
-| `stt_provider` | text | e.g. `"whisperx"` — recorded per-transcript for traceability across provider changes (§8) |
+| `stt_provider` | text | e.g. `"whisperx"`, `"gemini/gemini-2.5-flash"` — recorded per-transcript for traceability across provider changes (§8, §10) |
 | `diarization_provider` | text | e.g. `"pyannote-3.1"` |
 | `language_detected` | text\[] | e.g. `["en", "ml"]` for code-switched audio |
+| `is_multilingual` / `is_code_switched` | boolean, nullable | Only meaningfully reportable by a model that understands audio directly — null on the classic WhisperX path |
+| `raw_response` | jsonb, nullable | Pre-parse provider response — debugging/reprocessing, not the durable transcript itself |
+| `transcription_latency_ms` | integer, nullable | |
 | `created_at` | timestamptz | |
 
 ### `consultation_ai_jobs`
+
+Unchanged by ADR-0014 — already the per-stage status tracker; runs/
+reviews/transcripts are the per-stage *data*.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -499,30 +548,54 @@ Only tables owned by this repo. (CMS-owned tables — `patients`, `appointments`
 | `started_at` / `completed_at` | timestamptz, nullable | |
 | `created_at` | timestamptz | |
 
-### `consultation_ai_results` (the extraction output, versioned)
+### `consultation_ai_runs` (one immutable row per extraction attempt)
+
+Renamed and split from the original `consultation_ai_results` — see
+ADR-0014. `run_number` is what makes "Run 1 → Gemini, Run 2 → Claude,
+Run 3 → Groq" for the same recording a real, queryable comparison.
 
 | Field | Type | Notes |
 |---|---|---|
 | `id` | uuid, PK | |
-| `recording_id` | uuid, FK | |
-| `transcript_id` | uuid, FK | |
+| `recording_id` / `transcript_id` | uuid, FK | |
+| `run_number` | integer | 1, 2, 3... per recording, unique with `recording_id` |
 | `schema_version` | text | Matches §11's `schema_version` — required for safe schema evolution (§16) |
-| `llm_provider` | text | e.g. `"groq/llama-3.3-70b"` — traceability per §10 |
-| `extraction` | jsonb | The full §11 JSON payload as produced by the LLM |
+| `provider` / `model` | text | Split from the original combined `llm_provider` string (e.g. `"groq"` / `"llama-3.3-70b"`) |
+| `prompt_version` | text | Bumped whenever the extraction prompt's wording changes |
+| `temperature`, `latency_ms`, `input_tokens`, `output_tokens`, `total_tokens`, `estimated_cost_usd` | nullable | Captured from the provider's own response where available; cost needs a maintained per-model pricing table, currently always null |
+| `retry_count`, `had_validation_retry` | integer, boolean | The existing retry-with-feedback behavior (ADR-0011), now persisted |
+| `raw_response` | jsonb | Pre-parse provider response, stored even on success |
+| `extraction` | jsonb | The full §11 JSON payload as produced by the provider |
+| `confidence_overall` | numeric, nullable | Promoted from `extraction.aiConfidence.overall` for sort/filter — the one deliberate exception to "everything else stays in jsonb" in this schema |
+| `created_at` | timestamptz | |
+
+### `consultation_reviews` (mutable doctor workflow state)
+
+Split out of the original `consultation_ai_results` — one review per
+run, created transactionally alongside it with `status: draft`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | uuid, PK | |
+| `recording_id` | uuid, FK | Denormalized from `run_id` — keeps "latest review for this recording" a single-table query |
+| `run_id` | uuid, FK → `consultation_ai_runs.id` | |
 | `status` | enum | `draft` \| `edited` \| `accepted` \| `discarded` |
-| `edited_extraction` | jsonb, nullable | Doctor's edited version, if different from `extraction` — kept separate so the *original* AI output is never silently overwritten, for audit and for future model-quality evaluation (compare original vs. doctor-corrected) |
+| `edited_extraction` | jsonb, nullable | Doctor's edited version, if different from the run's `extraction` — kept separate so the *original* AI output is never silently overwritten |
 | `accepted_cms_prescription_ref` | text, nullable | Set once accepted and pushed into the CMS via §17's adapter |
 | `reviewed_by_ref` | text, nullable | CMS doctor user reference |
 | `reviewed_at` | timestamptz, nullable | |
-| `created_at` | timestamptz | |
+| `created_at` / `updated_at` | timestamptz | |
 
 ### `consultation_ai_audit_log`
+
+Implemented as of ADR-0014 (previously specified here but never built).
 
 | Field | Type | Notes |
 |---|---|---|
 | `id` | uuid, PK | |
-| `recording_id` | uuid, FK | |
-| `event_type` | text | e.g. `recording_started`, `consent_confirmed`, `job_enqueued`, `job_failed`, `draft_edited`, `draft_accepted`, `recording_deleted` |
+| `recording_id` | uuid, FK, nullable | Some events are session-scoped, not recording-scoped |
+| `session_id` | uuid, FK → `consultation_ai_sessions.id`, nullable | At least one of `recording_id`/`session_id` is required (DB check constraint) |
+| `event_type` | text | e.g. `session_started`, `consent_confirmed`, `run_created`, `draft_edited`, `draft_accepted`, `draft_discarded` |
 | `actor_ref` | text | Who/what triggered the event (doctor ref, or `system`) |
 | `metadata` | jsonb | Event-specific detail |
 | `created_at` | timestamptz | Append-only, never updated — the audit trail (§15) |
@@ -533,26 +606,43 @@ All tables use Drizzle ORM schema definitions under `apps/api/src/infrastructure
 
 ## 13. Queue Architecture
 
-Following Repo B's existing BullMQ pattern exactly (`repo B: apps/api/src/infrastructure/queues/{*.queue.ts, queue.constants.ts, queue.module.ts, redis.connection.ts, dead-letter.queues.ts}`), which already establishes: a shared `bullmqPrefix`, `defaultQueueJobOptions` (5 attempts, exponential backoff starting at 60s, `removeOnComplete: true`, `removeOnFail: false`), and a dedicated `dead-letter.queues.ts`.
+**pg-boss** (Postgres-native job queue), not BullMQ/Redis — see
+`docs/adr/0015-pg-boss-not-bullmq.md` for why this deviates from Repo
+B's existing BullMQ pattern (Redis quota exhaustion twice during
+testing on a low-traffic standalone repo, and this repo already
+requires a real Postgres database, so the queue runs on infrastructure
+that already exists rather than a separate hosted service). `apps/api`
+is the sole producer (`QueueModule`, `supervise`/`schedule` disabled —
+it never calls `.work()`); `workers/clinical-ai-worker` is the sole
+consumer, running its own `PgBoss` instance with default supervision.
+Both connect to the same `DATABASE_URL`.
 
 ### Queues this module adds
 
 | Queue | Job | Typical duration |
 |---|---|---|
-| `clinical-ai.transcription` | Call `asr-service` for STT+diarization on a finalized recording | 30s–3min depending on audio length |
-| `clinical-ai.extraction` | Call the LLM provider for clinical extraction on a completed transcript | 5–20s |
-| `clinical-ai.dead-letter` | Failed jobs from either queue above, after exhausting retries | n/a (inspection queue) |
+| `clinical-ai.transcription` | Call the speech-understanding provider (Gemini by default — §10) for STT+diarization on a finalized recording | 30s–3min depending on audio length |
+| `clinical-ai.transcriptionDeadLetter` | Transcription jobs that exhausted retries | n/a (inspection queue) |
+| `clinical-ai.extraction` | Call the clinical-extraction provider for structured extraction on a completed transcript | 5–20s |
+| `clinical-ai.extractionDeadLetter` | Extraction jobs that exhausted retries | n/a (inspection queue) |
+
+Each source queue has its own dead-letter queue (via pg-boss's native
+`deadLetter` option) rather than one shared DLQ — the two job payload
+shapes (`TranscriptionJobPayload`/`ExtractionJobPayload`) differ enough
+that a shared DLQ consumer would need a runtime type discriminant to
+process correctly; two small dedicated consumers are simpler.
 
 ### Workers
 
 Run in the separately-deployed `workers/clinical-ai-worker` process (§5), not inside `apps/api`'s HTTP server — long audio jobs must never compete with API request latency or trip HTTP liveness probes.
 
-- **Concurrency:** transcription worker concurrency is capped low (e.g. 2–4) since each job holds a GPU-backed inference call; extraction worker concurrency can be higher (e.g. 10, matching Repo B's `defaultWorkerOptions.concurrency`) since LLM calls are comparatively lightweight and I/O-bound.
-- **Retries:** inherits Repo B's `defaultQueueJobOptions` shape — exponential backoff, 5 attempts — but transcription jobs additionally distinguish *transient* failures (asr-service timeout, temporary network error → retry) from *permanent* failures (corrupt/empty audio file → fail fast, don't burn 5 attempts).
-- **Dead Letter Queue:** a job that exhausts its retries moves to `clinical-ai.dead-letter` (mirroring Repo B's existing `dead-letter.queues.ts` pattern) rather than silently disappearing. `consultation_ai_jobs.status` is set to `dead_letter`, and this surfaces in the admin controller (`admin-clinical-ai.controller.ts`) as an actionable "needs manual reprocess" list — never a silent failure the doctor discovers only when their draft never shows up.
-- **Failure recovery:** the admin endpoint supports a manual "reprocess" action that re-enqueues a job from its last successful stage (e.g. if extraction failed but transcription succeeded, reprocessing only re-runs extraction, not the whole pipeline from audio again) — this requires `consultation_ai_jobs` to track per-stage completion, not just one blob status.
-- **Job states:** `queued → active → completed | failed (→ retry → active) | dead_letter`. Mirrors BullMQ's native job lifecycle; `consultation_ai_jobs.status` is kept in sync via BullMQ event listeners (`completed`, `failed`, `stalled`).
-- **Priority:** extraction jobs for a consultation where the doctor is actively waiting in the review screen (i.e., the recording was just finalized in the last few minutes) get higher priority than any backlog/reprocessing jobs, using BullMQ's native job `priority` option — this is the difference between "the doctor sees their draft in under a minute" and "the doctor gives up and types it manually anyway," which would defeat the entire point of this module.
+- **Concurrency:** `boss.work(queueName, { localConcurrency }, handler)` — transcription capped low (2, since each job is a full audio-provider call); extraction higher (10, I/O-bound LLM calls). Configured via `TRANSCRIPTION_WORKER_CONCURRENCY`/`EXTRACTION_WORKER_CONCURRENCY` in `packages/config`.
+- **Retries:** `DEFAULT_QUEUE_JOB_OPTIONS` (`packages/types`) — `retryLimit: 5`, `retryBackoff: true`, `retryDelay: 60` (seconds) — set at `createQueue()` time, applied by pg-boss automatically on every failure; no per-job retry logic in this repo's own code.
+- **Dead Letter Queue:** a job that exhausts its retries is moved by pg-boss itself (native `deadLetter` routing, not application code) to the matching `*DeadLetter` queue. A small `.work()` consumer on each DLQ marks `consultation_ai_jobs.status = 'dead_letter'` via the same status-reporting HTTP call below — this surfaces in the admin controller (`admin-clinical-ai.controller.ts`) as an actionable "needs manual reprocess" list, never a silent failure the doctor discovers only when their draft never shows up.
+- **Failure recovery:** the admin endpoint supports a manual "reprocess" action (`ReprocessJobUseCase`) that reconstructs the original payload and sends a fresh job reusing the same `consultation_ai_jobs` tracking row id — pg-boss dead-letters a job as a new internal row rather than leaving the original retryable in place, so "reprocess" means "send a new job with the old data," not "resurrect the old job." Currently only supports `jobType: 'transcription'` (extraction reprocessing needs `transcriptId`/`requestedProvider` retained on the job row, not yet stored — documented follow-up).
+- **Job states:** `queued → active → completed | failed (→ retry → active) | dead_letter`. Unlike BullMQ, there is no cross-process Redis event bus for apps/api to passively observe these transitions — the worker explicitly reports each transition via `PATCH /clinical-ai/admin/jobs/:id/status` (`UpdateJobStatusUseCase`) as it happens, extending the same "worker talks to apps/api over HTTP" boundary from ADR-0010 to status reporting.
+- **Job-id decoupling:** pg-boss assigns its own job id on `send()` (stored as the informational `queue_job_id` column); the *payload* itself carries the actual `consultation_ai_jobs.id` (`jobId` field on both payload types) so status reporting always targets the right row regardless of how pg-boss's internal id changes across retries/reprocessing (see ADR-0015 for why forcing them to match was rejected).
+- **Priority:** not yet implemented on pg-boss (BullMQ's job `priority` option had no immediate pg-boss equivalent in use here) — a backlog item if extraction latency for an actively-waiting doctor ever needs to jump a queue of reprocessing jobs; not yet a real problem at this repo's traffic volume.
 
 ---
 
