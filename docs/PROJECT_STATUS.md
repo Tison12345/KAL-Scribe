@@ -5,7 +5,21 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-07-18 — `multilingual-support` branch: Gemini's
+**Last updated:** 2026-07-24 — `multilingual-support` branch: first
+Vercel deploy of `apps/web` failed (`Module not found:
+'@kal-scribe/types'`) because `dist/` is gitignored and Vercel only runs
+`apps/web`'s own `build` script, never `packages/types`'. Fixed by
+adding a `vercel-build` script to `apps/web/package.json` (Vercel prefers
+it over `build` automatically) that builds `@kal-scribe/types` first via
+pnpm's `...` dependency filter. **Verified**: locally, by deleting
+`packages/types/dist` and re-running the new script — build succeeds.
+**Not yet verified**: an actual green Vercel deployment (fix needs to
+reach `main` first, where it was made on `multilingual-support`); also
+`apps/api` has no deployment target yet, so `NEXT_PUBLIC_API_BASE_URL`
+is unset and the deployed frontend can't reach a real backend.
+`docs/log/2026-07-24-vercel-build-missing-types-dist.md`.
+
+Previous entry: — `multilingual-support` branch: Gemini's
 transcription now targets Kannada, Hindi, Tamil, Malayalam, and
 Sanskrit (Ayurvedic terminology) alongside English (docs/adr/0016).
 Non-English speech is still translated to English as the primary
