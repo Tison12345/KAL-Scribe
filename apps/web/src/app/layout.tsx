@@ -1,9 +1,37 @@
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
+import {
+  Manrope,
+  Noto_Sans_Devanagari,
+  Noto_Sans_Kannada,
+  Noto_Sans_Tamil,
+  Noto_Sans_Malayalam,
+} from "next/font/google";
 import "./globals.css";
 
 const manrope = Manrope({
   subsets: ["latin"],
+});
+
+// docs/adr/0016 — scripts for original-language transcript text
+// (Hindi/Sanskrit = Devanagari, plus Kannada/Tamil/Malayalam). Loaded
+// as CSS variables, not `className`, so they never become the body's
+// default font — Manrope stays that. Only TranscriptViewer's
+// original-text view opts into these, via the variable name.
+const notoSansDevanagari = Noto_Sans_Devanagari({
+  subsets: ["devanagari"],
+  variable: "--font-noto-devanagari",
+});
+const notoSansKannada = Noto_Sans_Kannada({
+  subsets: ["kannada"],
+  variable: "--font-noto-kannada",
+});
+const notoSansTamil = Noto_Sans_Tamil({
+  subsets: ["tamil"],
+  variable: "--font-noto-tamil",
+});
+const notoSansMalayalam = Noto_Sans_Malayalam({
+  subsets: ["malayalam"],
+  variable: "--font-noto-malayalam",
 });
 
 export const metadata: Metadata = {
@@ -35,7 +63,11 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block"
         />
       </head>
-      <body className={`${manrope.className} antialiased`}>{children}</body>
+      <body
+        className={`${manrope.className} ${notoSansDevanagari.variable} ${notoSansKannada.variable} ${notoSansTamil.variable} ${notoSansMalayalam.variable} antialiased`}
+      >
+        {children}
+      </body>
     </html>
   );
 }

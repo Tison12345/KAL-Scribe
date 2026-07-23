@@ -419,6 +419,11 @@ export async function processAudio(
       start: segment.start,
       end: segment.end,
       wordConfidence: segment.word_confidence,
+      // docs/adr/0016 — WhisperX has no equivalent to Gemini's
+      // original-language capture; explicitly null (not undefined),
+      // same precedent as isMultilingual/isCodeSwitched.
+      originalText: null,
+      originalLanguage: null,
     })),
     speakerTurns: body.speaker_turns,
     languageDetected: body.language_detected,

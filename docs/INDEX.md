@@ -43,6 +43,7 @@ deleted.
 - [`0013-gemini-single-model-poc.md`](adr/0013-gemini-single-model-poc.md) — clinical-ai-single branch: Gemini called directly (not via OpenRouter), replaces asr-service entirely, model choice, semantic speaker labeling
 - [`0014-mvp-supabase-postgres-and-storage.md`](adr/0014-mvp-supabase-postgres-and-storage.md) — removed PGlite/local-disk stand-ins for real Supabase, split consultation_ai_results into versioned runs+reviews, renamed provider interfaces
 - [`0015-pg-boss-not-bullmq.md`](adr/0015-pg-boss-not-bullmq.md) — replaced BullMQ/Redis with pg-boss (Postgres-native queue) after repeated Redis quota exhaustion
+- [`0016-multilingual-original-text-capture.md`](adr/0016-multilingual-original-text-capture.md) — Kannada/Hindi/Tamil/Malayalam/Sanskrit support: capture original-language text per segment (nullable, provider-dependent), scoped Noto Sans fonts
 - [`adr-template.md`](adr/adr-template.md) — shape to copy for a new ADR
 - [`README.md`](adr/README.md) — rules for this folder
 
@@ -77,6 +78,8 @@ to an old one.
 - [`2026-07-13-gemini-single-model-poc.md`](log/2026-07-13-gemini-single-model-poc.md) — clinical-ai-single branch: `GeminiProvider` wired in for both transcription and extraction, not yet tested against a real recording
 - [`2026-07-15-mvp-supabase-and-versioned-runs.md`](log/2026-07-15-mvp-supabase-and-versioned-runs.md) — real Supabase Postgres/Storage, versioned AI runs/reviews/sessions schema, renamed provider interfaces
 - [`2026-07-18-pg-boss-not-bullmq.md`](log/2026-07-18-pg-boss-not-bullmq.md) — replaced BullMQ/Redis with pg-boss, worker now reports job status over HTTP instead of Redis pub/sub
+- [`2026-07-18-multilingual-kannada-hindi-tamil-malayalam-sanskrit.md`](log/2026-07-18-multilingual-kannada-hindi-tamil-malayalam-sanskrit.md) — Kannada/Hindi/Tamil/Malayalam/Sanskrit support: original-text capture per segment, language badge + toggle UI, new eval fixtures, fixed a latent score.ts bug
+- [`2026-07-24-vercel-build-missing-types-dist.md`](log/2026-07-24-vercel-build-missing-types-dist.md) — fixed first Vercel deploy failure: added `apps/web`'s `vercel-build` script so `@kal-scribe/types` builds before `next build`
 - [`_template.md`](log/_template.md) — shape to copy for a new log entry
 - [`README.md`](log/README.md) — rules for this folder
 

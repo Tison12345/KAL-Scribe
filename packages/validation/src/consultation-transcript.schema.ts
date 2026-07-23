@@ -6,6 +6,11 @@ const transcriptSegmentSchema = z.object({
   start: z.number().nonnegative(),
   end: z.number().nonnegative(),
   wordConfidence: z.number().min(0).max(1).nullable(),
+  // docs/adr/0016 — null on the classic WhisperX path, only
+  // meaningfully reportable by a provider that understands audio
+  // directly (currently Gemini only).
+  originalText: z.string().nullable(),
+  originalLanguage: z.string().min(2).nullable(),
 });
 
 export const createTranscriptSchema = z.object({

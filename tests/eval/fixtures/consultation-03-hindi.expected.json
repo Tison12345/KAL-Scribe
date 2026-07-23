@@ -1,0 +1,35 @@
+{
+  "description": "Hindi consultation (docs/adr/0016 multilingual eval, hand-authored transcript simulating Gemini's English-translated `text` with Ayurvedic terms normalized) — Sandhivata (degenerative joint pain)/Vata imbalance, Yograj Guggulu + sesame oil massage, cold-avoidance diet/lifestyle advice, family history of arthritis (father), 3-week follow-up. No physical-examination findings were ever stated aloud.",
+  "complaints": {
+    "requiredKeywords": ["knee"]
+  },
+  "modernDiagnosis": {
+    "acceptNull": true,
+    "acceptableSubstrings": ["joint", "degenerative", "arthritis"],
+    "forbiddenSubstrings": ["fracture"]
+  },
+  "medicines": {
+    "expectedNameKeywords": ["yograj guggulu"]
+  },
+  "treatments": {
+    "expectedNameKeywords": ["massage"]
+  },
+  "dietAvoid": {
+    "expectedKeywords": ["cold"]
+  },
+  "dietEat": {
+    "expectedKeywords": []
+  },
+  "lifestyleMaintain": {
+    "expectedKeywords": ["warm"]
+  },
+  "followUp": {
+    "expectedValue": 3,
+    "expectedUnit": "weeks"
+  },
+  "familyHistory": {
+    "expectedDisease": "Arthritis",
+    "expectedRelationKeyword": "Father"
+  },
+  "examFindingsShouldBeEmpty": true
+}

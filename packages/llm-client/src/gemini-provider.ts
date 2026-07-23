@@ -138,6 +138,11 @@ export class GeminiProvider
       // Gemini doesn't report per-word confidence the way WhisperX does
       // — there's no equivalent signal to put here.
       wordConfidence: null,
+      // docs/adr/0016 — always populated on this path (Gemini
+      // understands audio directly); null only on the classic
+      // WhisperX path (see workers/clinical-ai-worker/src/main.ts).
+      originalText: segment.originalText,
+      originalLanguage: segment.originalLanguage,
     }));
 
     return {
@@ -333,12 +338,16 @@ export class GeminiProvider
 
 const TRANSCRIPTION_SYSTEM_INSTRUCTION = `You are transcribing and diarizing a single audio recording of one doctor-patient consultation at an Ayurvedic clinic.
 
+This clinic's consultations are conducted in English, Hindi, Kannada, Tamil, or Malayalam, sometimes code-switched within one consultation, occasionally with short Ayurvedic Sanskrit terms or phrases mixed in. Expect and correctly handle all of these — none is more "default" than another.
+
 Tasks:
-1. Transcribe every spoken word verbatim, segment by segment. If speech is not in English, translate it into English but keep Ayurvedic/medical terms as actually spoken (e.g. "Vata", "Pitta", "srotas") rather than translating them away.
-2. Identify exactly two speaker roles — "Doctor" (asks clinical questions, gives diagnosis/advice/instructions/prescriptions) and "Patient" (describes symptoms, answers the doctor's questions) — using what is actually said to tell them apart, never turn order or voice alone. Every segment's "speaker" must be exactly "Doctor" or "Patient".
-3. Split the conversation into natural speaker turns — start a new segment whenever the speaker changes. Report "start" and "end" as seconds (numbers, may be fractional) from the beginning of the audio file.
-4. Report every distinct spoken language you detect as ISO 639-1 codes (e.g. "en", "hi", "kn").
-5. Report whether any single utterance mixes more than one language mid-sentence (code-switching, e.g. an English sentence with Hindi words dropped in) as "codeSwitched" — this is different from simply multiple languages being spoken at different points.
+1. Transcribe every spoken word verbatim, segment by segment. If speech is not in English, translate it into English for "text". Always normalize the spelling of Ayurvedic/medical terms in "text" to their standard Sanskrit-transliteration form (e.g. always "Vata", "Pitta", "Kapha", "srotas" — never phonetic respellings like "Vatha" or "Vaatha"), since this exact spelling is matched downstream against fixed clinical dropdown options.
+2. Also report "originalText": the verbatim wording exactly as spoken, in its original script (Devanagari for Hindi, Kannada script, Tamil script, Malayalam script) — not transliterated, not translated, and not spelling-normalized like "text" is. If the segment was already spoken in English, set "originalText" equal to "text".
+3. Report "originalLanguage": the single ISO 639-1 code for the dominant language of that specific segment — one of "en", "hi", "kn", "ta", "ml", or "sa". Use "sa" only for a genuine multi-word Sanskrit phrase or quotation, not for a single familiar Ayurvedic noun (like "Vata" or "Pitta") that's already expected in the English "text" — otherwise almost every segment would get tagged "sa", which defeats the point of this field. If a segment itself mixes languages, pick whichever is dominant.
+4. Identify exactly two speaker roles — "Doctor" (asks clinical questions, gives diagnosis/advice/instructions/prescriptions) and "Patient" (describes symptoms, answers the doctor's questions) — using what is actually said to tell them apart, never turn order or voice alone. Every segment's "speaker" must be exactly "Doctor" or "Patient".
+5. Split the conversation into natural speaker turns — start a new segment whenever the speaker changes. Report "start" and "end" as seconds (numbers, may be fractional) from the beginning of the audio file.
+6. Report every distinct spoken language you detect across the whole recording as ISO 639-1 codes in "languageDetected" (e.g. "en", "hi", "kn", "ta", "ml") — this is a whole-recording summary, not per-segment; do not include "sa" here unless Sanskrit is genuinely one of the recording's spoken languages, not just terminology.
+7. Report whether any single utterance mixes more than one language mid-sentence (code-switching, e.g. an English sentence with Hindi words dropped in) as "codeSwitched" — this is different from simply multiple languages being spoken at different points in the recording.
 
 Return ONLY the JSON object matching the provided response schema — no markdown fences, no commentary.`;
 
@@ -354,10 +363,12 @@ const TRANSCRIPTION_RESPONSE_SCHEMA = {
         properties: {
           speaker: { type: "STRING", enum: ["Doctor", "Patient"] },
           text: { type: "STRING" },
+          originalText: { type: "STRING" },
+          originalLanguage: { type: "STRING" },
           start: { type: "NUMBER" },
           end: { type: "NUMBER" },
         },
-        required: ["speaker", "text", "start", "end"],
+        required: ["speaker", "text", "originalText", "originalLanguage", "start", "end"],
       },
     },
   },
@@ -369,6 +380,8 @@ const transcriptionResponseSchema = z.object({
     z.object({
       speaker: z.enum(["Doctor", "Patient"]),
       text: z.string(),
+      originalText: z.string(),
+      originalLanguage: z.string(),
       start: z.number().nonnegative(),
       end: z.number().nonnegative(),
     }),

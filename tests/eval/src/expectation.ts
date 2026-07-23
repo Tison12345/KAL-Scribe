@@ -12,11 +12,17 @@ export interface EvalExpectation {
     forbiddenSubstrings: string[];
   };
   medicines: { expectedNameKeywords: string[] };
+  /** Empty array = no treatment was ever mentioned in this fixture's
+   * transcript — the check is skipped (score.ts), not scored as a
+   * failure. */
   treatments: { expectedNameKeywords: string[] };
   dietAvoid: { expectedKeywords: string[] };
   dietEat: { expectedKeywords: string[] };
   lifestyleMaintain: { expectedKeywords: string[] };
   followUp: { expectedValue: number; expectedUnit: string };
+  /** Empty `expectedDisease` = family history was never mentioned in
+   * this fixture's transcript — the check is skipped (score.ts), not
+   * scored as a failure. */
   familyHistory: { expectedDisease: string; expectedRelationKeyword: string };
   /** No physical-examination finding (Ashtavidha, Srotas, Prakrithi,
    * Dosha, Agni, Ojas) was ever stated aloud in this fixture's

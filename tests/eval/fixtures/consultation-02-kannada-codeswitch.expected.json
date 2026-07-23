@@ -1,0 +1,35 @@
+{
+  "description": "Kannada-English code-switched consultation (docs/adr/0016 multilingual eval, hand-authored transcript simulating Gemini's English-translated `text` with Ayurvedic terms normalized) — Amlapitta (acid dyspepsia)/Pitta imbalance, Avipattikar Churna, cooling-diet advice, 2-week follow-up. No physical-examination findings were ever stated aloud.",
+  "complaints": {
+    "requiredKeywords": ["burning", "acidity"]
+  },
+  "modernDiagnosis": {
+    "acceptNull": true,
+    "acceptableSubstrings": ["dyspepsia", "acid"],
+    "forbiddenSubstrings": ["ulcer", "cancer"]
+  },
+  "medicines": {
+    "expectedNameKeywords": ["avipattikar"]
+  },
+  "treatments": {
+    "expectedNameKeywords": []
+  },
+  "dietAvoid": {
+    "expectedKeywords": ["spicy"]
+  },
+  "dietEat": {
+    "expectedKeywords": ["coconut"]
+  },
+  "lifestyleMaintain": {
+    "expectedKeywords": []
+  },
+  "followUp": {
+    "expectedValue": 2,
+    "expectedUnit": "weeks"
+  },
+  "familyHistory": {
+    "expectedDisease": "",
+    "expectedRelationKeyword": ""
+  },
+  "examFindingsShouldBeEmpty": true
+}

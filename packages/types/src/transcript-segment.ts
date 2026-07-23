@@ -7,13 +7,23 @@
  * doctor-patient-labeling.engine.ts) only once diarization has run
  * (architecture.md §9 — requires HF_TOKEN); otherwise it's the
  * placeholder "Speaker 1", since the ASR service alone can't tell who's
- * speaking without it. */
+ * speaking without it.
+ *
+ * `originalText`/`originalLanguage` (docs/adr/0016) are only
+ * meaningfully reportable by a provider that understands audio
+ * directly and preserves original-language wording alongside the
+ * English `text` — currently only Gemini. Null on the classic
+ * WhisperX path (python/asr-service has no equivalent signal), same
+ * precedent as `SpeechUnderstandingMetadata.isMultilingual`/
+ * `isCodeSwitched`. */
 export interface TranscriptSegment {
   speaker: string;
   text: string;
   start: number;
   end: number;
   wordConfidence: number | null;
+  originalText: string | null;
+  originalLanguage: string | null;
 }
 
 export interface SpeakerTurn {
