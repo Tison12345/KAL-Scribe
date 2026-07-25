@@ -5,21 +5,33 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-07-24 — `multilingual-support` branch: first
-Vercel deploy of `apps/web` failed (`Module not found:
-'@kal-scribe/types'`) because `dist/` is gitignored and Vercel only runs
-`apps/web`'s own `build` script, never `packages/types`'. Fixed by
-adding a `vercel-build` script to `apps/web/package.json` (Vercel prefers
-it over `build` automatically) that builds `@kal-scribe/types` first via
-pnpm's `...` dependency filter. **Verified**: locally, by deleting
-`packages/types/dist` and re-running the new script — build succeeds.
-**Not yet verified**: an actual green Vercel deployment (fix needs to
-reach `main` first, where it was made on `multilingual-support`); also
-`apps/api` has no deployment target yet, so `NEXT_PUBLIC_API_BASE_URL`
-is unset and the deployed frontend can't reach a real backend.
+**Last updated:** 2026-07-25 — `multilingual-support` branch: `apps/web`
+now deploys cleanly on Vercel (2026-07-24 fix, merged to `main`). Started
+deploying `apps/api`/`workers/clinical-ai-worker` to Render and hit a
+second, unrelated bug: `apps/api` built successfully but crashed on start
+(`Cannot find module '.../apps/api/dist/main.js'`) because
+`drizzle.config.ts` sits outside `src/` with no explicit `rootDir` in
+`tsconfig.build.json`, pushing TypeScript's inferred root up a level and
+nesting `main.js` under `dist/src/` instead of `dist/`. Fixed by pinning
+`rootDir: "./src"` and excluding `drizzle.config.ts` from the build (it's
+only read directly by the `drizzle-kit` CLI, never meant to be compiled).
+**Verified**: locally, by deleting all relevant `dist/`s and rebuilding —
+`dist/main.js` now lands at the correct path; `typecheck` still passes.
+Checked `workers/clinical-ai-worker`'s tsconfig and confirmed it isn't
+exposed to the same bug (already has an explicit `rootDir`/`include`).
+**Not yet verified**: an actual green Render deployment (fix needs to
+merge to `main` first); `workers/clinical-ai-worker` hasn't been deployed
+yet at all. `docs/log/2026-07-25-api-dist-main-rootdir-bug.md`.
+
+Previous entry: 2026-07-24 — first Vercel deploy of `apps/web` failed
+(`Module not found: '@kal-scribe/types'`) because `dist/` is gitignored
+and Vercel only runs `apps/web`'s own `build` script, never
+`packages/types`'. Fixed by adding a `vercel-build` script to
+`apps/web/package.json` (Vercel prefers it over `build` automatically)
+that builds `@kal-scribe/types` first via pnpm's `...` dependency filter.
 `docs/log/2026-07-24-vercel-build-missing-types-dist.md`.
 
-Previous entry: — `multilingual-support` branch: Gemini's
+Earlier entry: `multilingual-support` branch: Gemini's
 transcription now targets Kannada, Hindi, Tamil, Malayalam, and
 Sanskrit (Ayurvedic terminology) alongside English (docs/adr/0016).
 Non-English speech is still translated to English as the primary

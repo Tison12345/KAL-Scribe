@@ -80,6 +80,7 @@ to an old one.
 - [`2026-07-18-pg-boss-not-bullmq.md`](log/2026-07-18-pg-boss-not-bullmq.md) — replaced BullMQ/Redis with pg-boss, worker now reports job status over HTTP instead of Redis pub/sub
 - [`2026-07-18-multilingual-kannada-hindi-tamil-malayalam-sanskrit.md`](log/2026-07-18-multilingual-kannada-hindi-tamil-malayalam-sanskrit.md) — Kannada/Hindi/Tamil/Malayalam/Sanskrit support: original-text capture per segment, language badge + toggle UI, new eval fixtures, fixed a latent score.ts bug
 - [`2026-07-24-vercel-build-missing-types-dist.md`](log/2026-07-24-vercel-build-missing-types-dist.md) — fixed first Vercel deploy failure: added `apps/web`'s `vercel-build` script so `@kal-scribe/types` builds before `next build`
+- [`2026-07-25-api-dist-main-rootdir-bug.md`](log/2026-07-25-api-dist-main-rootdir-bug.md) — fixed `apps/api`'s `node dist/main.js` crash on Render: `drizzle.config.ts` outside `src/` pushed TypeScript's inferred `rootDir` up, nesting output under `dist/src/`
 - [`_template.md`](log/_template.md) — shape to copy for a new log entry
 - [`README.md`](log/README.md) — rules for this folder
 
