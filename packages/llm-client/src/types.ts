@@ -3,9 +3,8 @@ import type { ClinicalExtraction, TranscriptSegment } from "@kal-scribe/types";
 /** Swappable vendor implementations selected via `EXTRACTION_PROVIDER`
  * (docs/adr/0014 — renamed from `LlmProvider`/`LLM_PROVIDER`: "LLM" was
  * never accurate for the speech side, and pins the vocabulary to a
- * kind of model rather than a job). Mirrors the STT provider-
- * abstraction pattern in python/asr-service (one file per vendor, no
- * vendor SDK called from outside this package). */
+ * kind of model rather than a job). One file per vendor, no vendor SDK
+ * called from outside this package. */
 export interface ClinicalExtractionRequest {
   transcriptId: string;
   segments: TranscriptSegment[];
@@ -41,10 +40,9 @@ export interface ClinicalExtractionProvider {
   ): Promise<ClinicalExtractionResult>;
 }
 
-/** clinical-ai-single branch only — a provider that can transcribe +
- * diarize audio directly, standing in for python/asr-service's
- * Whisper+pyannote pipeline entirely (not a hybrid of the two). A
- * provider implementing this does NOT need to also implement
+/** A provider that can transcribe + diarize audio directly (Gemini is
+ * the sole implementation today — docs/adr/0017). A provider
+ * implementing this does NOT need to also implement
  * `ClinicalExtractionProvider`, but `GeminiProvider` does both since
  * it's one model doing the whole job. Renamed from
  * `AudioTranscriptionProvider` (docs/adr/0014) to match
@@ -67,8 +65,7 @@ export interface SpeechUnderstandingMetadata {
 
 export interface SpeechUnderstandingResult {
   segments: TranscriptSegment[];
-  /** ISO 639-1 codes, mirrors ProcessAudioResponse.languageDetected —
-   * empty array if the provider didn't report one. */
+  /** ISO 639-1 codes — empty array if the provider didn't report one. */
   languageDetected: string[];
   metadata: SpeechUnderstandingMetadata;
 }

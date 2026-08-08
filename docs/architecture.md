@@ -374,11 +374,12 @@ flowchart LR
 
 ## 8. Speech-to-Text Evaluation
 
-> **Historical evaluation — kept for the reasoning, but Gemini has
-> since become the deployed default** for speech understanding
-> (ADR-0013), evaluated after this table was written. See
-> `docs/modules/clinical-ai-pipeline.md` §4 for how the current
-> default actually works.
+> **Historical evaluation — kept for the reasoning.** Gemini became
+> the deployed default for speech understanding (ADR-0013), and the
+> WhisperX/Pyannote path this section evaluates was later removed from
+> the codebase entirely (ADR-0017) — `python/asr-service` no longer
+> exists. See `docs/modules/clinical-ai-pipeline.md` §4 for how the
+> current pipeline actually works.
 
 | | Google Speech-to-Text | Whisper (self/API-hosted) | WhisperX |
 |---|---|---|---|
@@ -402,12 +403,13 @@ The `infrastructure/asr-service.adapter.ts` in NestJS talks to `python/asr-servi
 
 ## 9. Speaker Diarization
 
-> **Describes the pre-build design's diarization approach.** The
-> deployed default (Gemini, ADR-0013) does diarization differently —
+> **Describes the pre-build design's diarization approach — Pyannote
+> and the anonymous-cluster + separate-labeling-heuristic approach
+> below were removed from the codebase entirely (ADR-0017).** The
+> deployed pipeline (Gemini, ADR-0013) does diarization differently —
 > it labels speakers *semantically* ("Doctor" vs "Patient" based on
 > who's asking clinical questions) directly via a Gemini-native
-> `responseSchema` enum constraint, not via the anonymous-cluster +
-> separate-labeling-heuristic approach described below. See
+> `responseSchema` enum constraint. See
 > `docs/modules/clinical-ai-pipeline.md` §4.
 
 **What it is.** Diarization answers "who spoke when," independent of *what* was said — it partitions the audio timeline into speaker-turn segments (Speaker A: 0:00–0:12, Speaker B: 0:12–0:19, ...) using voice characteristics (pitch, timbre, speaking style), not transcript content.
@@ -568,7 +570,7 @@ consultation.
 | `stt_provider` | text | e.g. `"whisperx"`, `"gemini/gemini-2.5-flash"` — recorded per-transcript for traceability across provider changes (§8, §10) |
 | `diarization_provider` | text | e.g. `"pyannote-3.1"` |
 | `language_detected` | text\[] | e.g. `["en", "ml"]` for code-switched audio |
-| `is_multilingual` / `is_code_switched` | boolean, nullable | Only meaningfully reportable by a model that understands audio directly — null on the classic WhisperX path |
+| `is_multilingual` / `is_code_switched` | boolean, nullable | Only meaningfully reportable by a model that understands audio directly — always populated by Gemini, the sole speech-understanding provider (ADR-0017) |
 | `raw_response` | jsonb, nullable | Pre-parse provider response — debugging/reprocessing, not the durable transcript itself |
 | `transcription_latency_ms` | integer, nullable | |
 | `created_at` | timestamptz | |

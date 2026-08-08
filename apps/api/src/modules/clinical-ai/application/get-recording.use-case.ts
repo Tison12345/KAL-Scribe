@@ -44,7 +44,6 @@ export class GetRecordingUseCase {
       fileSizeBytes: row.fileSizeBytes,
       consentConfirmed: row.consentConfirmed,
       consentConfirmedAt: row.consentConfirmedAt?.toISOString() ?? null,
-      sttDevice: row.sttDevice,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

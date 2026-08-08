@@ -6,7 +6,6 @@ export type {
 export type {
   ConsultationRecording,
   ConsultationRecordingStatus,
-  SttDevice,
   StartRecordingRequest,
   StartRecordingResponse,
   RequestChunkUploadRequest,
@@ -33,11 +32,7 @@ export {
 } from "./clinical-ai-queues.js";
 export type { ClinicalAiQueueName } from "./clinical-ai-queues.js";
 
-export type {
-  TranscriptSegment,
-  SpeakerTurn,
-  ProcessAudioResponse,
-} from "./transcript-segment.js";
+export type { TranscriptSegment } from "./transcript-segment.js";
 
 export type {
   ConsultationTranscript,

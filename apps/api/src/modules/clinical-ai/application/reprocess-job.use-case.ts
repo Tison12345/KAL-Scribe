@@ -58,7 +58,6 @@ export class ReprocessJobUseCase {
         jobId: job.id,
         recordingId: recording.id,
         storageKey: recording.storageKey,
-        sttDevice: recording.sttDevice ?? undefined,
       } satisfies TranscriptionJobPayload,
     );
 

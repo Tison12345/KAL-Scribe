@@ -13,7 +13,6 @@ import {
   loadSpeechUnderstandingProvider,
 } from "@kal-scribe/llm-client";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import {
   createTranscript,
   enqueueExtractionJob,
@@ -21,7 +20,6 @@ import {
   getAudioMetadata,
   getTranscript,
   persistExtractionResult,
-  processAudio,
   updateJobStatus,
   updateRecordingAudioMetadata,
 } from "./internal-api-client";
@@ -94,7 +92,7 @@ function deadLetterHandler<TPayload extends { jobId: string }>(
  * enqueues the extraction job (stage 7→8 hand-off).
  */
 async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<void> {
-  const { recordingId, sttDevice } = data;
+  const { recordingId } = data;
 
   // Idempotency guard (same reasoning as CompleteUploadUseCase): a
   // retry can fire after the real work already succeeded — e.g. this
@@ -131,60 +129,31 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
       fileSizeBytes: audio.length,
     });
 
-    // clinical-ai-single branch: when SPEECH_PROVIDER is configured
-    // (Gemini), it replaces python/asr-service (Whisper+pyannote)
-    // entirely rather than being layered on top of it — that's the
-    // whole premise of this branch.
+    // Gemini is the sole speech-understanding provider (docs/adr/0017 —
+    // the classic WhisperX+Pyannote path was removed entirely).
     const speechProvider = loadSpeechUnderstandingProvider({
       EXTRACTION_PROVIDER: env.EXTRACTION_PROVIDER,
-      SPEECH_PROVIDER: env.SPEECH_PROVIDER,
       GROQ_API_KEY: env.GROQ_API_KEY,
       GROQ_MODEL: env.GROQ_MODEL,
       GEMINI_API_KEY: env.GEMINI_API_KEY,
       GEMINI_MODEL: env.GEMINI_MODEL,
     });
 
-    let transcriptSegments: TranscriptSegment[];
-    let sttProvider: string;
-    let diarizationProvider: string | null;
-    let languageDetected: string[];
-    let isMultilingual: boolean | null = null;
-    let isCodeSwitched: boolean | null = null;
-    let rawResponse: unknown = null;
-    let transcriptionLatencyMs: number | null = null;
-
-    if (speechProvider) {
-      const result = await speechProvider.transcribeAudio({
-        audio,
-        // Chunks are recorded/stitched as webm (internal-api-client.ts's
-        // fetchAndStitchRecordingAudio) — same container for every
-        // recording regardless of provider.
-        mimeType: "audio/webm",
-      });
-      transcriptSegments = result.segments;
-      sttProvider = speechProvider.name;
-      diarizationProvider = speechProvider.name;
-      languageDetected = result.languageDetected;
-      isMultilingual = result.metadata.isMultilingual;
-      isCodeSwitched = result.metadata.isCodeSwitched;
-      rawResponse = result.metadata.rawResponse;
-      transcriptionLatencyMs = result.metadata.latencyMs;
-    } else {
-      const result = await processAudio(
-        env.ASR_SERVICE_URL,
-        audio,
-        path.basename(audioPath),
-        sttDevice,
-      );
-      transcriptSegments = result.transcriptSegments;
-      // "pyannote" (not a specific submodel version) — asr-service tries
-      // multiple pyannote models in sequence (pyannote_provider.py) and
-      // doesn't report back which one actually loaded, so asserting a
-      // specific version here would be a guess, not a fact.
-      sttProvider = "whisperx";
-      diarizationProvider = result.speakerTurns.length > 0 ? "pyannote" : null;
-      languageDetected = result.languageDetected;
-    }
+    const result = await speechProvider.transcribeAudio({
+      audio,
+      // Chunks are recorded/stitched as webm (internal-api-client.ts's
+      // fetchAndStitchRecordingAudio) — same container for every
+      // recording regardless of provider.
+      mimeType: "audio/webm",
+    });
+    const transcriptSegments: TranscriptSegment[] = result.segments;
+    const sttProvider: string = speechProvider.name;
+    const diarizationProvider: string | null = speechProvider.name;
+    const languageDetected: string[] = result.languageDetected;
+    const isMultilingual: boolean | null = result.metadata.isMultilingual;
+    const isCodeSwitched: boolean | null = result.metadata.isCodeSwitched;
+    const rawResponse: unknown = result.metadata.rawResponse;
+    const transcriptionLatencyMs: number | null = result.metadata.latencyMs;
 
     console.log(
       `[clinical-ai-worker] transcript for recording ${recordingId}:\n` +
@@ -232,7 +201,6 @@ async function processExtractionJob(data: ExtractionJobPayload): Promise<void> {
   const provider = loadClinicalExtractionProvider(
     {
       EXTRACTION_PROVIDER: env.EXTRACTION_PROVIDER,
-      SPEECH_PROVIDER: env.SPEECH_PROVIDER,
       GROQ_API_KEY: env.GROQ_API_KEY,
       GROQ_MODEL: env.GROQ_MODEL,
       GEMINI_API_KEY: env.GEMINI_API_KEY,

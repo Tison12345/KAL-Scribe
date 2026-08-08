@@ -52,7 +52,6 @@ export class StartRecordingUseCase {
       status: 'recording',
       consentConfirmed: true,
       consentConfirmedAt: new Date(),
-      sttDevice: request.sttDevice ?? null,
     });
 
     await this.auditLog.record({

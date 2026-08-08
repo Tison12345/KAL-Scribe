@@ -43,7 +43,6 @@ async function loadFixture(baseName: string): Promise<{
 async function main(): Promise<void> {
   const provider = loadClinicalExtractionProvider({
     EXTRACTION_PROVIDER: process.env.EXTRACTION_PROVIDER ?? "groq",
-    SPEECH_PROVIDER: process.env.SPEECH_PROVIDER,
     GROQ_API_KEY: process.env.GROQ_API_KEY,
     GROQ_MODEL: process.env.GROQ_MODEL,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,

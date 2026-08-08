@@ -1,7 +1,0 @@
-fastapi>=0.115
-uvicorn[standard]>=0.34
-python-multipart>=0.0.20
-whisperx==3.8.6
-torch==2.8.0
-torchaudio==2.8.0
-pydantic>=2.9

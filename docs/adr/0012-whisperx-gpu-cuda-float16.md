@@ -1,6 +1,8 @@
 # ADR-0012: WhisperX runtime — switch to GPU (CUDA, float16)
 
-- Status: accepted
+- Status: superseded by ADR-0017 (2026-08-09) — the classic
+  WhisperX+Pyannote pipeline this ADR configured was removed entirely.
+  This ADR's context/decision remain accurate history.
 - Date: 2026-07-07
 - Context: ADR-0009 deliberately stayed on CPU/int8 for MVP, but named
   its own trigger condition explicitly: "once real volume makes the

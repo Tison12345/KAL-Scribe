@@ -42,8 +42,10 @@ section.
 
 The two provider interfaces (`SpeechUnderstandingProvider`,
 `ClinicalExtractionProvider`, `packages/llm-client/src/types.ts`) are
-selected independently via `SPEECH_PROVIDER` and `EXTRACTION_PROVIDER`
-env vars — a single vendor doesn't have to fill both roles.
+independent — extraction is selected via `EXTRACTION_PROVIDER`, while
+Gemini is the sole speech-understanding implementation (`docs/adr/0017`
+removed the classic WhisperX+Pyannote path entirely, so there is no
+corresponding `SPEECH_PROVIDER` selector).
 
 ## End-to-end flow
 
@@ -175,7 +177,7 @@ a no-op returning current state — this is what stops a duplicate
 transcription job from ever being enqueued), sets `storageKey =
 recordings/{recordingId}/` (the *folder*, not a stitched file —
 stitching happens later, worker-side), and enqueues a `transcription`
-job on pg-boss carrying `{ jobId, recordingId, storageKey, sttDevice }`.
+job on pg-boss carrying `{ jobId, recordingId, storageKey }`.
 
 ## 3. Worker-side fetch + stitch
 
@@ -263,9 +265,9 @@ trail of what was actually said, not just the translation. Sanskrit
 (`sa`) is scoped as a terminology tag, not a primary spoken-language
 target — the prompt explicitly avoids tagging every familiar Ayurvedic
 noun as a language switch. Both fields are nullable on
-`TranscriptSegment`: always populated on this (Gemini) path, always
-`null` on the classic WhisperX path (`internal-api-client.ts`'s
-`processAudio()` — no equivalent signal exists there).
+`TranscriptSegment` — always populated on this (Gemini, the sole
+speech-understanding provider) path; the typing stays nullable since
+not every provider necessarily reports original-language wording.
 
 The result — a `TranscriptSegment[]` of `{ speaker, text, originalText,
 originalLanguage, start, end }` — is persisted via `POST

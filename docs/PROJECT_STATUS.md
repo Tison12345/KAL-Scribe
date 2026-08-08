@@ -5,7 +5,21 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-07-25 — `multilingual-support` branch: `apps/web`
+**Last updated:** 2026-08-09 — `multilingual-support` branch: removed the
+classic WhisperX+Pyannote pipeline entirely (`docs/adr/0017`) ahead of
+submitting this repo for review — deleted `python/asr-service/`,
+collapsed the worker's Gemini-or-classic branch to Gemini-only (now a
+hard dependency, fails loudly without `GEMINI_API_KEY`), and removed
+`SttDevice`/`ASR_SERVICE_URL`/`SPEECH_PROVIDER`/`SpeakerTurn`/
+`ProcessAudioResponse` across `packages/types`, `packages/config`,
+`packages/validation`, `apps/api` (including a DB migration dropping
+`consultation_recordings.stt_device`), and `apps/web`. ADR-0001/0009/0012
+marked superseded (kept in place as history, not deleted). The removed
+code still exists in full on the independent `classic-pipeline` git
+branch. **Verified**: full workspace `typecheck`/`build`/`lint` all pass
+clean. `docs/log/2026-08-09-remove-classic-whisperx-pipeline.md`.
+
+Previous entry: 2026-07-25 — `multilingual-support` branch: `apps/web`
 now deploys cleanly on Vercel (2026-07-24 fix, merged to `main`). Started
 deploying `apps/api`/`workers/clinical-ai-worker` to Render and hit a
 second, unrelated bug: `apps/api` built successfully but crashed on start
@@ -357,7 +371,6 @@ one rule yet, a documented open item, not a code bug).
 - Milestone 9 (CMS Mapping) and onward — see `docs/architecture.md` §18.
 - Real Supabase Storage/Postgres integration — both are local
   stand-ins today (ADR-0007, ADR-0008).
-- GPU inference — still deferred, see ADR-0009.
 - Audio-level eval fixtures (raw audio → transcription WER) — needs
   real or de-identified audio plus hand-transcribed ground truth.
 
@@ -513,16 +526,13 @@ one rule yet, a documented open item, not a code bug).
 
 ## Key decisions in effect
 
-- STT provider: WhisperX — `docs/adr/0001-stt-provider-whisperx.md`
-- WhisperX runtime: **now GPU (CUDA, float16)** on this machine (RTX
-  4050) — same 7-minute recording went from 4m35s (CPU) to 45s (GPU),
-  a ~6.1x speedup, comfortably clearing architecture.md §13's "draft
-  in under a minute" target — `docs/adr/0012-whisperx-gpu-cuda-float16.md`,
-  `docs/log/2026-07-07-gpu-speed-test.md`. Supersedes the CPU/int8
-  config in `docs/adr/0009-whisperx-runtime-config-cpu-small.md`
-  (kept as the fallback for machines without a GPU). Production
-  hosting (self-host GPU vs. hosted GPU/serverless vs. hosted STT API)
-  is still an open question — this only validates local speed.
+- Speech understanding (transcription + diarization): **Gemini only —
+  the classic WhisperX+Pyannote pipeline was removed entirely**
+  (`docs/adr/0017-remove-classic-whisperx-pipeline.md`). ADR-0001
+  (STT provider: WhisperX), ADR-0009 (CPU/int8 runtime), and ADR-0012
+  (GPU/CUDA runtime) are superseded by ADR-0017 and kept in place as
+  history; the removed code lives on in full on the `classic-pipeline`
+  git branch.
 - LLM provider (MVP extraction): Groq-hosted Llama, verified working —
   `docs/adr/0002-llm-provider-groq-mvp.md`,
   `docs/adr/0011-llm-extraction-implementation-choices.md`
@@ -542,14 +552,6 @@ one rule yet, a documented open item, not a code bug).
   same `DATABASE_URL` as everything else, no hosted Redis dependency
   remains — `docs/adr/0015-pg-boss-not-bullmq.md`. Supersedes the
   BullMQ/Upstash-Redis line this entry used to have.
-- Diarization: Pyannote — now running the **primary**
-  `speaker-diarization-3.1` model (gated-terms access granted
-  2026-07-06, including its `segmentation-3.0` dependency), replacing
-  the `community-1` fallback that earlier's ~60% turn-level accuracy
-  number was measured on. Re-verified against the exact same Milestone
-  6 two-speaker audio: 13/15 segments matched, 2 changed, both changes
-  correct reassignments. No ADR filed; this is the vendor
-  architecture.md §9 already specifies, not a new choice.
 - Worker calls apps/api over HTTP, not by importing NestJS use-cases —
   `docs/adr/0010-worker-http-client-not-nestjs-import.md`.
 - CMS integration: stubbed (`StubCmsIntegrationAdapter`), logs instead
