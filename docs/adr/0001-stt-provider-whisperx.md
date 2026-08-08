@@ -1,6 +1,9 @@
 # ADR-0001: Speech-to-text provider — WhisperX for MVP
 
-- Status: accepted
+- Status: superseded by ADR-0017 (2026-08-09) — the classic
+  WhisperX+Pyannote pipeline this ADR chose was removed entirely, not
+  kept as a fallback. This ADR's context/decision remain accurate
+  history for why WhisperX was chosen at the time.
 - Date: 2026-07-04
 - Context: The diarization merge (architecture.md §9) is the most
   failure-prone step in the pipeline, and it lives or dies on

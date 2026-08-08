@@ -1,8 +1,9 @@
 # ADR-0009: WhisperX runtime config — small model, CPU, int8 (GPU is a planned upgrade)
 
-- Status: superseded by ADR-0012 (2026-07-07) — GPU is now the active
-  config on machines with a usable GPU; this ADR's CPU/int8 config
-  remains the fallback for machines without one.
+- Status: superseded by ADR-0012 (2026-07-07), then by ADR-0017
+  (2026-08-09) — the classic WhisperX+Pyannote pipeline this ADR
+  configured was removed entirely. This ADR's context/decision remain
+  accurate history.
 - Date: 2026-07-05
 - Context: ADR-0001 already chose WhisperX as the STT provider.
   Milestone 5 needed to pick an actual runtime configuration — model

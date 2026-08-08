@@ -7,21 +7,15 @@ import type {
 
 export interface LlmClientEnv {
   EXTRACTION_PROVIDER: string;
-  /** Unset means "no audio-native speech provider configured" — the
-   * caller falls back to python/asr-service (docs/adr/0014). Split
-   * from EXTRACTION_PROVIDER since one env var conflating "which model
-   * extracts" and "which model transcribes" only got more confusing
-   * once a single vendor (Groq) can do only one of the two jobs. */
-  SPEECH_PROVIDER: string | undefined;
   GROQ_API_KEY: string | undefined;
   GROQ_MODEL: string | undefined;
   GEMINI_API_KEY: string | undefined;
   GEMINI_MODEL: string | undefined;
 }
 
-/** Mirrors python/asr-service's `_load_provider` pattern (architecture.md
- * §10) — one file per vendor, selected via env var, no vendor SDK
- * called from outside this package. `providerOverride` (docs/adr/0014)
+/** One file per vendor, selected via env var, no vendor SDK called
+ * from outside this package (architecture.md §10). `providerOverride`
+ * (docs/adr/0014)
  * lets a single extraction attempt target a different vendor than the
  * deployment-wide default — what makes "run this recording again
  * against a different provider for comparison" (a new
@@ -48,18 +42,13 @@ export function loadClinicalExtractionProvider(
   );
 }
 
-/** clinical-ai-single branch only — returns a provider that can
- * transcribe+diarize audio directly (standing in for
- * python/asr-service) when a speech-capable provider is configured.
- * Returns null when none is (like Groq, which only does text
- * extraction), so callers can fall back to the classic asr-service
- * call. */
+/** Gemini is the sole speech-understanding provider (docs/adr/0017 —
+ * the classic WhisperX+Pyannote path was removed entirely, not kept
+ * as a fallback). Fails loudly if GEMINI_API_KEY is missing, same
+ * reasoning as loadClinicalExtractionProvider. */
 export function loadSpeechUnderstandingProvider(
   env: LlmClientEnv,
-  providerOverride?: string,
-): SpeechUnderstandingProvider | null {
-  const provider = providerOverride ?? env.SPEECH_PROVIDER;
-  if (provider !== "gemini") return null;
+): SpeechUnderstandingProvider {
   return loadGeminiProvider(env);
 }
 

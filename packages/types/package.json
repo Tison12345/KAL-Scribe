@@ -2,7 +2,7 @@
   "name": "@kal-scribe/types",
   "version": "0.0.0",
   "private": true,
-  "description": "Shared TypeScript types for the clinical-ai module (mirrored into python/asr-service's Pydantic models — see architecture.md §16).",
+  "description": "Shared TypeScript types for the clinical-ai module.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

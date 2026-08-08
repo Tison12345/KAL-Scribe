@@ -55,13 +55,14 @@ interface GeminiCallResult {
 }
 
 /**
- * clinical-ai-single branch — one Gemini model standing in for the
- * whole pipeline: `transcribeAudio` replaces python/asr-service
- * (Whisper+pyannote), `extractClinicalData` replaces GroqProvider's
- * role, both against the same `gemini-*` model (see docs/adr for the
- * model choice). Uses the REST API directly (no `@google/genai` SDK),
- * matching this package's "no vendor SDK called from outside the
- * provider file" convention (architecture.md §10, groq-provider.ts).
+ * One Gemini model handling the whole pipeline: `transcribeAudio` is
+ * the sole speech-understanding implementation (docs/adr/0017),
+ * `extractClinicalData` is one of two `ClinicalExtractionProvider`
+ * implementations alongside `GroqProvider`, both against the same
+ * `gemini-*` model (see docs/adr for the model choice). Uses the REST
+ * API directly (no `@google/genai` SDK), matching this package's "no
+ * vendor SDK called from outside the provider file" convention
+ * (architecture.md §10, groq-provider.ts).
  */
 export class GeminiProvider
   implements ClinicalExtractionProvider, SpeechUnderstandingProvider
@@ -76,7 +77,7 @@ export class GeminiProvider
   }
 
   // ---------------------------------------------------------------------
-  // Audio transcription + diarization (replaces python/asr-service)
+  // Audio transcription + diarization
   // ---------------------------------------------------------------------
 
   async transcribeAudio(

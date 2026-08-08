@@ -28,7 +28,7 @@ One file per non-obvious decision, numbered in creation order. A
 superseded ADR stays in place with its `Status:` line updated, not
 deleted.
 
-- [`0001-stt-provider-whisperx.md`](adr/0001-stt-provider-whisperx.md) — chose WhisperX as the speech-to-text provider
+- [`0001-stt-provider-whisperx.md`](adr/0001-stt-provider-whisperx.md) — **superseded by 0017** — chose WhisperX as the speech-to-text provider
 - [`0002-llm-provider-groq-mvp.md`](adr/0002-llm-provider-groq-mvp.md) — chose Groq-hosted Llama for MVP clinical extraction
 - [`0003-object-storage-supabase.md`](adr/0003-object-storage-supabase.md) — chose Supabase Storage as the production object-storage target
 - [`0004-audio-retention-90-days.md`](adr/0004-audio-retention-90-days.md) — proposed 90-day audio retention default (legal sign-off still open)
@@ -36,14 +36,15 @@ deleted.
 - [`0006-record-button-level-meter.md`](adr/0006-record-button-level-meter.md) — `RecordButton`'s live level-meter visual design
 - [`0007-local-disk-storage-standin.md`](adr/0007-local-disk-storage-standin.md) — local-disk, signed-URL-shaped stand-in for object storage in dev
 - [`0008-local-postgres-standin-pglite.md`](adr/0008-local-postgres-standin-pglite.md) — embedded PGlite as the local dev stand-in for Postgres
-- [`0009-whisperx-runtime-config-cpu-small.md`](adr/0009-whisperx-runtime-config-cpu-small.md) — **superseded by 0012** — original CPU/`small`/int8 WhisperX config
+- [`0009-whisperx-runtime-config-cpu-small.md`](adr/0009-whisperx-runtime-config-cpu-small.md) — **superseded by 0012, then 0017** — original CPU/`small`/int8 WhisperX config
 - [`0010-worker-http-client-not-nestjs-import.md`](adr/0010-worker-http-client-not-nestjs-import.md) — worker calls apps/api over HTTP, not by importing NestJS use-cases
 - [`0011-llm-extraction-implementation-choices.md`](adr/0011-llm-extraction-implementation-choices.md) — implementation choices for the clinical-extraction LLM call
-- [`0012-whisperx-gpu-cuda-float16.md`](adr/0012-whisperx-gpu-cuda-float16.md) — switched WhisperX to GPU (CUDA/float16), ~6.1x faster than CPU
+- [`0012-whisperx-gpu-cuda-float16.md`](adr/0012-whisperx-gpu-cuda-float16.md) — **superseded by 0017** — switched WhisperX to GPU (CUDA/float16), ~6.1x faster than CPU
 - [`0013-gemini-single-model-poc.md`](adr/0013-gemini-single-model-poc.md) — clinical-ai-single branch: Gemini called directly (not via OpenRouter), replaces asr-service entirely, model choice, semantic speaker labeling
 - [`0014-mvp-supabase-postgres-and-storage.md`](adr/0014-mvp-supabase-postgres-and-storage.md) — removed PGlite/local-disk stand-ins for real Supabase, split consultation_ai_results into versioned runs+reviews, renamed provider interfaces
 - [`0015-pg-boss-not-bullmq.md`](adr/0015-pg-boss-not-bullmq.md) — replaced BullMQ/Redis with pg-boss (Postgres-native queue) after repeated Redis quota exhaustion
 - [`0016-multilingual-original-text-capture.md`](adr/0016-multilingual-original-text-capture.md) — Kannada/Hindi/Tamil/Malayalam/Sanskrit support: capture original-language text per segment (nullable, provider-dependent), scoped Noto Sans fonts
+- [`0017-remove-classic-whisperx-pipeline.md`](adr/0017-remove-classic-whisperx-pipeline.md) — removed the classic WhisperX+Pyannote pipeline (`python/asr-service`) entirely; Gemini is now the sole speech-understanding provider
 - [`adr-template.md`](adr/adr-template.md) — shape to copy for a new ADR
 - [`README.md`](adr/README.md) — rules for this folder
 
@@ -81,6 +82,7 @@ to an old one.
 - [`2026-07-18-multilingual-kannada-hindi-tamil-malayalam-sanskrit.md`](log/2026-07-18-multilingual-kannada-hindi-tamil-malayalam-sanskrit.md) — Kannada/Hindi/Tamil/Malayalam/Sanskrit support: original-text capture per segment, language badge + toggle UI, new eval fixtures, fixed a latent score.ts bug
 - [`2026-07-24-vercel-build-missing-types-dist.md`](log/2026-07-24-vercel-build-missing-types-dist.md) — fixed first Vercel deploy failure: added `apps/web`'s `vercel-build` script so `@kal-scribe/types` builds before `next build`
 - [`2026-07-25-api-dist-main-rootdir-bug.md`](log/2026-07-25-api-dist-main-rootdir-bug.md) — fixed `apps/api`'s `node dist/main.js` crash on Render: `drizzle.config.ts` outside `src/` pushed TypeScript's inferred `rootDir` up, nesting output under `dist/src/`
+- [`2026-08-09-remove-classic-whisperx-pipeline.md`](log/2026-08-09-remove-classic-whisperx-pipeline.md) — removed the classic WhisperX+Pyannote pipeline (`python/asr-service`) entirely ahead of review; Gemini is now the sole speech-understanding provider
 - [`_template.md`](log/_template.md) — shape to copy for a new log entry
 - [`README.md`](log/README.md) — rules for this folder
 

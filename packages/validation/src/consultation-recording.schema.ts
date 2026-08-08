@@ -6,7 +6,6 @@ export const startRecordingSchema = z.object({
   // literal(true), not boolean() — architecture.md §15: consent must be
   // an explicit, deliberate value, never merely truthy/defaulted.
   consentConfirmed: z.literal(true),
-  sttDevice: z.enum(["cpu", "gpu"]).optional(),
 });
 
 export const requestChunkUploadSchema = z.object({

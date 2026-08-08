@@ -2,26 +2,22 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { Agent, fetch as undiciFetch, FormData as UndiciFormData } from "undici";
 import type {
   ConsultationTranscript,
   CreateExtractionResultRequest,
   CreateExtractionResultResponse,
   CreateTranscriptRequest,
   CreateTranscriptResponse,
-  ProcessAudioResponse,
-  SttDevice,
   UpdateRecordingAudioMetadataRequest,
 } from "@kal-scribe/types";
 
 /**
- * Everything workers/clinical-ai-worker calls over HTTP: apps/api (for
- * anything needing the DB or a queue producer) and python/asr-service
- * (for STT+diarization inference). Consolidated into one file rather
- * than one near-duplicate file per endpoint group — see docs/adr/0010
- * for why the worker calls apps/api over HTTP at all instead of
- * importing its NestJS use-cases directly, and for why this whole file
- * gets deleted (not migrated) at Repo B integration.
+ * Everything workers/clinical-ai-worker calls over HTTP to apps/api
+ * (for anything needing the DB or a queue producer). Consolidated into
+ * one file rather than one near-duplicate file per endpoint group —
+ * see docs/adr/0010 for why the worker calls apps/api over HTTP at all
+ * instead of importing its NestJS use-cases directly, and for why this
+ * whole file gets deleted (not migrated) at Repo B integration.
  */
 
 // ---------------------------------------------------------------------------
@@ -266,9 +262,9 @@ export function updateRecordingAudioMetadata(
 // apps/api — transcripts
 // ---------------------------------------------------------------------------
 
-/** Persists the transcript once asr-service has produced it
- * (architecture.md §7 step 7) — via apps/api, not a direct DB
- * connection from the worker (docs/adr/0010). Returns the new
+/** Persists the transcript once the speech-understanding provider has
+ * produced it (architecture.md §7 step 7) — via apps/api, not a direct
+ * DB connection from the worker (docs/adr/0010). Returns the new
  * transcript's id, needed to enqueue the extraction job. */
 export function createTranscript(
   apiBaseUrl: string,
@@ -337,95 +333,4 @@ export function updateJobStatus(
     status,
     errorMessage,
   });
-}
-
-// ---------------------------------------------------------------------------
-// python/asr-service
-// ---------------------------------------------------------------------------
-
-// Node's default fetch (undici) agent has its own headersTimeout/
-// bodyTimeout of 300s, tracked independently of any AbortSignal passed
-// to `fetch()` — an AbortSignal only stops the request early, it
-// cannot raise undici's built-in connection-level timeouts. A real
-// multi-minute consultation on CPU-only WhisperX+Pyannote (docs/adr/
-// 0009) blocks python/asr-service's single event loop for the entire
-// transcribe+diarize duration before it can send any response bytes,
-// so any recording whose processing exceeds 300s hits
-// UND_ERR_HEADERS_TIMEOUT regardless of AbortSignal — confirmed via a
-// direct reproduction (docs/log/2026-07-07-headers-timeout-bug-fix.md).
-// Both timeouts must be raised on a dedicated Agent (the global fetch
-// has no way to configure this); once the client actually waits long
-// enough for a response, python/asr-service — which has no idea the
-// client disconnected — no longer piles up abandoned CPU/memory work
-// across retries.
-const ASR_SERVICE_TIMEOUT_MS = 20 * 60 * 1000;
-const asrServiceAgent = new Agent({
-  headersTimeout: ASR_SERVICE_TIMEOUT_MS,
-  bodyTimeout: ASR_SERVICE_TIMEOUT_MS,
-});
-
-/** Calls python/asr-service (architecture.md §3.2, §8). `device`
- * (docs/adr/0012) is forwarded as-is ("cpu"/"gpu") — asr-service maps
- * "gpu" to torch's "cuda" internally; omitted defers to its own
- * `STT_DEVICE` default. */
-export async function processAudio(
-  asrServiceUrl: string,
-  audio: Buffer,
-  filename: string,
-  device?: SttDevice,
-): Promise<ProcessAudioResponse> {
-  // undici's own FormData/fetch (not the global lib.dom ones) — the
-  // global fetch has no way to attach a custom Agent, and undici's
-  // fetch type only accepts its own FormData as a BodyInit.
-  const formData = new UndiciFormData();
-  // new Uint8Array(audio) (not `audio` directly) guarantees a plain
-  // ArrayBuffer backing, not the ArrayBuffer|SharedArrayBuffer union
-  // Node's Buffer type carries — Blob's constructor type requires the
-  // former.
-  formData.append("file", new Blob([new Uint8Array(audio)]), filename);
-  if (device) {
-    formData.append("device", device);
-  }
-
-  const res = await undiciFetch(`${asrServiceUrl}/v1/process-audio`, {
-    method: "POST",
-    body: formData,
-    signal: AbortSignal.timeout(ASR_SERVICE_TIMEOUT_MS),
-    dispatcher: asrServiceAgent,
-  });
-
-  if (!res.ok) {
-    throw new Error(
-      `asr-service /v1/process-audio failed: ${res.status} ${await res.text()}`,
-    );
-  }
-
-  const body = (await res.json()) as {
-    transcript_segments: Array<{
-      speaker: string;
-      text: string;
-      start: number;
-      end: number;
-      word_confidence: number | null;
-    }>;
-    speaker_turns: Array<{ speaker: string; start: number; end: number }>;
-    language_detected: string[];
-  };
-
-  return {
-    transcriptSegments: body.transcript_segments.map((segment) => ({
-      speaker: segment.speaker,
-      text: segment.text,
-      start: segment.start,
-      end: segment.end,
-      wordConfidence: segment.word_confidence,
-      // docs/adr/0016 — WhisperX has no equivalent to Gemini's
-      // original-language capture; explicitly null (not undefined),
-      // same precedent as isMultilingual/isCodeSwitched.
-      originalText: null,
-      originalLanguage: null,
-    })),
-    speakerTurns: body.speaker_turns,
-    languageDetected: body.language_detected,
-  };
 }

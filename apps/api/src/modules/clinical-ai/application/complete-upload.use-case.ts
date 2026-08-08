@@ -62,11 +62,7 @@ export class CompleteUploadUseCase {
       storageKey,
     });
 
-    await this.enqueueTranscriptionJob(
-      updated.id,
-      storageKey,
-      updated.sttDevice ?? undefined,
-    );
+    await this.enqueueTranscriptionJob(updated.id, storageKey);
 
     return { recordingId: updated.id, status: updated.status };
   }
@@ -76,7 +72,6 @@ export class CompleteUploadUseCase {
   private async enqueueTranscriptionJob(
     recordingId: string,
     storageKey: string,
-    sttDevice: TranscriptionJobPayload['sttDevice'],
   ): Promise<void> {
     const jobRow = await this.jobs.create({
       recordingId,
@@ -90,7 +85,6 @@ export class CompleteUploadUseCase {
         jobId: jobRow.id,
         recordingId,
         storageKey,
-        sttDevice,
       } satisfies TranscriptionJobPayload,
     );
     await this.jobs.update(jobRow.id, { queueJobId });

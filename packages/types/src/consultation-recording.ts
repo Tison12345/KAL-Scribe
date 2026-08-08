@@ -8,11 +8,6 @@ export type ConsultationRecordingStatus =
   | "processing_failed"
   | "processed";
 
-/** Which device `python/asr-service` should run WhisperX on for this
- * recording's transcription — see docs/adr/0012. `undefined`/omitted
- * defers to asr-service's own `STT_DEVICE` default. */
-export type SttDevice = "cpu" | "gpu";
-
 export interface ConsultationRecording {
   id: string;
   /** Sourced via a join to the owning `consultation_ai_sessions` row
@@ -31,7 +26,6 @@ export interface ConsultationRecording {
   fileSizeBytes: number | null;
   consentConfirmed: boolean;
   consentConfirmedAt: string | null;
-  sttDevice: SttDevice | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,7 +36,6 @@ export interface StartRecordingRequest {
   /** Must be `true` — architecture.md §15: no recording may exist
    * without explicit, per-session doctor-confirmed consent. */
   consentConfirmed: true;
-  sttDevice?: SttDevice;
 }
 
 export interface StartRecordingResponse {
