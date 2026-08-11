@@ -79,6 +79,46 @@ pnpm --filter @kal-scribe/web dev
 
 Then open `http://localhost:3000`.
 
+## Running just the worker against the deployed backend
+
+`apps/web` and `apps/api` are already deployed (Vercel and Render,
+respectively). If you only need to run `workers/clinical-ai-worker` —
+e.g. someone else is using the live frontend and you just want the
+background pipeline processing their recordings — you don't need to
+run the other two processes at all. The worker only ever connects
+*out* (to Postgres, to `apps/api` over HTTP, to Supabase Storage, to
+Gemini) and never receives inbound traffic, so it can run anywhere,
+including your own machine, and it'll pick up real jobs from the same
+live queue the deployed backend writes to.
+
+Three things are easy to miss doing this:
+
+1. **`ffmpeg`/`ffprobe` on `PATH`** — a real system dependency, not an
+   env var. The worker spawns `ffmpeg` directly; without it, the
+   worker crashes on the first real job regardless of `.env`.
+2. **`pnpm install && pnpm build` first, even if you only run the
+   worker.** It imports `@kal-scribe/types`, `@kal-scribe/config`, and
+   `@kal-scribe/llm-client` as workspace packages that resolve via
+   their compiled `dist/` output (gitignored, so a fresh clone has
+   none of it) — skip the build and `pnpm --filter
+   @kal-scribe/clinical-ai-worker dev` fails on those imports.
+3. **`workers/clinical-ai-worker/.env` must point at the deployed
+   backend, not the `.env.example` default.** Copying the example
+   as-is leaves `API_BASE_URL=http://localhost:3001`, which silently
+   talks to nothing:
+
+   ```sh
+   DATABASE_URL=<same Supabase connection string apps/api's Render service uses>
+   API_BASE_URL=https://kal-scribe-api.onrender.com
+   GEMINI_API_KEY=<your own key, or the project's>
+   ```
+
+Then just:
+
+```sh
+pnpm --filter @kal-scribe/clinical-ai-worker dev
+```
+
 ## Layout
 
 - `apps/api` — NestJS backend: recording/upload session API, job
