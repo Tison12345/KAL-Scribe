@@ -107,7 +107,7 @@ export class GeminiProvider
       },
     ];
 
-    const { text: raw } = await this.generate(
+    const { text: raw, usage } = await this.generate(
       TRANSCRIPTION_SYSTEM_INSTRUCTION,
       contents,
       TRANSCRIPTION_RESPONSE_SCHEMA,
@@ -153,6 +153,9 @@ export class GeminiProvider
         latencyMs: Date.now() - t0,
         isMultilingual: result.data.languageDetected.length > 1,
         isCodeSwitched: result.data.codeSwitched,
+        inputTokens: usage?.promptTokenCount ?? null,
+        outputTokens: usage?.candidatesTokenCount ?? null,
+        totalTokens: usage?.totalTokenCount ?? null,
         rawResponse: raw,
       },
     };

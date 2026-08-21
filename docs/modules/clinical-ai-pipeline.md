@@ -273,7 +273,9 @@ The result — a `TranscriptSegment[]` of `{ speaker, text, originalText,
 originalLanguage, start, end }` — is persisted via `POST
 /clinical-ai/recordings/:id/transcript` as a `consultation_transcripts`
 row, along with `languageDetected`, `isMultilingual`/`isCodeSwitched`,
-the raw provider response, and transcription latency
+token usage (`inputTokens`/`outputTokens`/`totalTokens`, from Gemini's
+`usageMetadata` — same pattern extraction already used), the raw
+provider response, and transcription latency
 (`sttProvider`/`diarizationProvider` are both recorded as
 `"gemini/{model}"`, since one model does both jobs). The worker then
 immediately enqueues the `extraction` job for the same recording.

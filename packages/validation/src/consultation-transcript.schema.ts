@@ -20,6 +20,9 @@ export const createTranscriptSchema = z.object({
   languageDetected: z.array(z.string()).nullable(),
   isMultilingual: z.boolean().nullable().optional(),
   isCodeSwitched: z.boolean().nullable().optional(),
+  inputTokens: z.number().int().nonnegative().nullable().optional(),
+  outputTokens: z.number().int().nonnegative().nullable().optional(),
+  totalTokens: z.number().int().nonnegative().nullable().optional(),
   rawResponse: z.unknown().optional(),
   transcriptionLatencyMs: z.number().int().nonnegative().nullable().optional(),
 });

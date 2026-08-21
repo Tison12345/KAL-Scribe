@@ -83,6 +83,7 @@ to an old one.
 - [`2026-07-24-vercel-build-missing-types-dist.md`](log/2026-07-24-vercel-build-missing-types-dist.md) — fixed first Vercel deploy failure: added `apps/web`'s `vercel-build` script so `@kal-scribe/types` builds before `next build`
 - [`2026-07-25-api-dist-main-rootdir-bug.md`](log/2026-07-25-api-dist-main-rootdir-bug.md) — fixed `apps/api`'s `node dist/main.js` crash on Render: `drizzle.config.ts` outside `src/` pushed TypeScript's inferred `rootDir` up, nesting output under `dist/src/`
 - [`2026-08-09-remove-classic-whisperx-pipeline.md`](log/2026-08-09-remove-classic-whisperx-pipeline.md) — removed the classic WhisperX+Pyannote pipeline (`python/asr-service`) entirely ahead of review; Gemini is now the sole speech-understanding provider
+- [`2026-08-12-transcription-token-tracking.md`](log/2026-08-12-transcription-token-tracking.md) — transcription token usage now tracked (was silently discarded), matching extraction's existing pattern
 - [`_template.md`](log/_template.md) — shape to copy for a new log entry
 - [`README.md`](log/README.md) — rules for this folder
 

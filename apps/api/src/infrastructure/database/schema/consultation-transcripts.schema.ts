@@ -30,6 +30,11 @@ export const consultationTranscripts = pgTable('consultation_transcripts', {
   // audio directly (e.g. Gemini) — null for the WhisperX path, which
   // has no signal for this.
   isCodeSwitched: boolean('is_code_switched'),
+  // Same reasoning as consultation_ai_runs' token columns — null
+  // until the provider's response actually reports them.
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  totalTokens: integer('total_tokens'),
   // Pre-parse provider response for the transcription/diarization
   // stage (docs/adr/0014) — kept for parser improvements, debugging,
   // reprocessing, cross-provider comparison.

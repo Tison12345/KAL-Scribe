@@ -152,6 +152,9 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
     const languageDetected: string[] = result.languageDetected;
     const isMultilingual: boolean | null = result.metadata.isMultilingual;
     const isCodeSwitched: boolean | null = result.metadata.isCodeSwitched;
+    const inputTokens: number | null = result.metadata.inputTokens;
+    const outputTokens: number | null = result.metadata.outputTokens;
+    const totalTokens: number | null = result.metadata.totalTokens;
     const rawResponse: unknown = result.metadata.rawResponse;
     const transcriptionLatencyMs: number | null = result.metadata.latencyMs;
 
@@ -169,6 +172,9 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
       languageDetected: languageDetected.length > 0 ? languageDetected : null,
       isMultilingual,
       isCodeSwitched,
+      inputTokens,
+      outputTokens,
+      totalTokens,
       rawResponse,
       transcriptionLatencyMs,
     });

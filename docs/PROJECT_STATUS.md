@@ -5,7 +5,24 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-08-09 — `multilingual-support` branch: removed the
+**Last updated:** 2026-08-12 — `main`: transcription token usage is now
+tracked, matching extraction. `SpeechUnderstandingMetadata` gained
+`inputTokens`/`outputTokens`/`totalTokens`, populated from Gemini's
+`usageMetadata` (`promptTokenCount`/`candidatesTokenCount`/
+`totalTokenCount`) — previously `transcribeAudio()` discarded this
+field entirely even though Gemini always returns it. Persisted as
+three new nullable `consultation_transcripts` columns (migration
+`0002_green_quasimodo.sql`), threaded through `CreateTranscriptRequest`
+and both transcript-returning use-cases (`GetTranscriptUseCase`,
+`RelabelTranscriptSpeakersUseCase`). Prompted by manually checking
+`consultation_ai_runs`' extraction token totals for today's test
+recordings and confirming transcription's side was a real gap, not a
+theoretical one. **Verified**: full workspace typecheck/build/lint
+pass clean. **Not yet verified**: a live recording actually populating
+the new columns (migration hasn't run against a live recording yet —
+will apply automatically next `apps/api` boot).
+
+Previous entry: 2026-08-09 — `multilingual-support` branch: removed the
 classic WhisperX+Pyannote pipeline entirely (`docs/adr/0017`) ahead of
 submitting this repo for review — deleted `python/asr-service/`,
 collapsed the worker's Gemini-or-classic branch to Gemini-only (now a

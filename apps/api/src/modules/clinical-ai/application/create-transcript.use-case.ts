@@ -29,6 +29,9 @@ export class CreateTranscriptUseCase {
       languageDetected: request.languageDetected,
       isMultilingual: request.isMultilingual ?? null,
       isCodeSwitched: request.isCodeSwitched ?? null,
+      inputTokens: request.inputTokens ?? null,
+      outputTokens: request.outputTokens ?? null,
+      totalTokens: request.totalTokens ?? null,
       rawResponse: request.rawResponse ?? null,
       transcriptionLatencyMs: request.transcriptionLatencyMs ?? null,
     });

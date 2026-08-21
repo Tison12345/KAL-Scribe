@@ -26,6 +26,9 @@ export class GetTranscriptUseCase {
       languageDetected: row.languageDetected,
       isMultilingual: row.isMultilingual,
       isCodeSwitched: row.isCodeSwitched,
+      inputTokens: row.inputTokens,
+      outputTokens: row.outputTokens,
+      totalTokens: row.totalTokens,
       transcriptionLatencyMs: row.transcriptionLatencyMs,
       createdAt: row.createdAt.toISOString(),
     };

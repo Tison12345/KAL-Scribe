@@ -10,6 +10,9 @@ export interface ConsultationTranscript {
   languageDetected: string[] | null;
   isMultilingual: boolean | null;
   isCodeSwitched: boolean | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
   transcriptionLatencyMs: number | null;
   createdAt: string;
 }
@@ -21,6 +24,9 @@ export interface CreateTranscriptRequest {
   languageDetected: string[] | null;
   isMultilingual?: boolean | null;
   isCodeSwitched?: boolean | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
   rawResponse?: unknown;
   transcriptionLatencyMs?: number | null;
 }

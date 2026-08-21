@@ -60,6 +60,11 @@ export interface SpeechUnderstandingMetadata {
   /** Only meaningfully reportable by a model that understands the
    * audio directly — null when the provider has no signal for it. */
   isCodeSwitched: boolean | null;
+  /** Same reasoning as ClinicalExtractionMetadata's token fields —
+   * null until the provider's response actually reports them. */
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
   rawResponse: unknown;
 }
 

@@ -33,6 +33,9 @@ export class RelabelTranscriptSpeakersUseCase {
       languageDetected: updated.languageDetected,
       isMultilingual: updated.isMultilingual,
       isCodeSwitched: updated.isCodeSwitched,
+      inputTokens: updated.inputTokens,
+      outputTokens: updated.outputTokens,
+      totalTokens: updated.totalTokens,
       transcriptionLatencyMs: updated.transcriptionLatencyMs,
       createdAt: updated.createdAt.toISOString(),
     };
