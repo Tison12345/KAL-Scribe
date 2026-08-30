@@ -5,7 +5,41 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-08-12 — `main`: transcription token usage is now
+**Last updated:** 2026-08-29 — `robustness/audit-fixes` branch (off
+`main`): fixed every finding from a full production-readiness audit
+(`docs/modules/kal-scribe-integration-readiness.md`, score 38/100)
+that didn't need a new decision or a legal sign-off first. Fixed: D5
+(silent transcription→extraction handoff stall — a worker dying
+between persisting a transcript and enqueueing extraction used to
+report the retry as "completed" with extraction never enqueued; the
+guard now self-heals), D7 (verbatim transcript text/PHI no longer
+logged to stdout), E1 (Gemini/Groq calls now time out after 120s
+instead of hanging a worker slot forever), E3 (extraction jobs are now
+idempotent on retry, same self-healing pattern as D5), E4 (content-hash
+audio dedup — byte-identical recordings reuse an existing transcript
+instead of being re-transcribed and re-billed), E5 (worker's pg-boss
+instance no longer holds an extra un-disabled LISTEN/NOTIFY connection,
+reclaiming headroom against Supabase's 15-connection cap), E8
+(transcription now tracks `model`/`prompt_version` per transcript,
+matching extraction's existing tracking), and CORS (was fully open, now
+restricted via a new `WEB_APP_ORIGIN` env var). E2 partially done
+(added `consultation_recording_chunks` — chunk existence/upload
+confirmation is now a real server-side row, not implicit; resume-on-
+reload UX is a separate follow-up). Also added
+`consultation_ai_sessions.facility_id` (nullable, no FK yet, §2.2 of
+the readiness doc) as a structural convention for a smaller future CMS
+merge. **Deliberately not touched**: D1–D4 (no auth/authorization
+anywhere — the dominant risk, its own track), E7 (retention policy —
+blocked on `ADR-0004`'s pending legal sign-off), structured logging
+(genuinely the largest remaining item, needs its own pass), §2.1/§2.3
+(need real decisions, not guessed at). **Verified**: full workspace
+`pnpm -r build` and every package's `typecheck` pass clean; D5/E3's
+fixes are logic-verified against the failure scenario, not yet
+exercised against a real worker-crash/retry in production.
+`docs/log/2026-08-29-robustness-audit-fixes.md`,
+`docs/log/2026-08-29-robustness-audit-fixes-part2.md`.
+
+Previous entry: 2026-08-12 — `main`: transcription token usage is now
 tracked, matching extraction. `SpeechUnderstandingMetadata` gained
 `inputTokens`/`outputTokens`/`totalTokens`, populated from Gemini's
 `usageMetadata` (`promptTokenCount`/`candidatesTokenCount`/

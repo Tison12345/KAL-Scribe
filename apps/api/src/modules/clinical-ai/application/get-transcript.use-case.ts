@@ -23,6 +23,8 @@ export class GetTranscriptUseCase {
       segments: row.segments as TranscriptSegment[],
       sttProvider: row.sttProvider,
       diarizationProvider: row.diarizationProvider,
+      model: row.model,
+      promptVersion: row.promptVersion,
       languageDetected: row.languageDetected,
       isMultilingual: row.isMultilingual,
       isCodeSwitched: row.isCodeSwitched,

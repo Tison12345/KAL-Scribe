@@ -1,0 +1,1 @@
+ALTER TABLE "consultation_recordings" ADD COLUMN "audio_hash" text;

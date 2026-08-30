@@ -17,6 +17,8 @@ export const createTranscriptSchema = z.object({
   segments: z.array(transcriptSegmentSchema),
   sttProvider: z.string().min(1),
   diarizationProvider: z.string().min(1).nullable(),
+  model: z.string().min(1).nullable().optional(),
+  promptVersion: z.string().min(1).nullable().optional(),
   languageDetected: z.array(z.string()).nullable(),
   isMultilingual: z.boolean().nullable().optional(),
   isCodeSwitched: z.boolean().nullable().optional(),

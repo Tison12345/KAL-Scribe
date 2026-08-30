@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import type {
   AcceptReviewDraftRequest,
   CompleteUploadRequest,
@@ -12,7 +12,9 @@ import type {
   CreateExtractionResultResponse,
   CreateTranscriptRequest,
   CreateTranscriptResponse,
+  DuplicateTranscriptResponse,
   EnqueueExtractionJobRequest,
+  RecordingChunk,
   RequestChunkReadResponse,
   RequestChunkUploadRequest,
   RequestChunkUploadResponse,
@@ -36,16 +38,19 @@ import {
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe';
 import { AcceptReviewDraftUseCase } from '../application/accept-review-draft.use-case';
 import { CompleteUploadUseCase } from '../application/complete-upload.use-case';
+import { ConfirmChunkUploadUseCase } from '../application/confirm-chunk-upload.use-case';
 import { CreateExtractionResultUseCase } from '../application/create-extraction-result.use-case';
 import { CreateTranscriptUseCase } from '../application/create-transcript.use-case';
 import { DiscardReviewDraftUseCase } from '../application/discard-review-draft.use-case';
 import { EnqueueExtractionJobUseCase } from '../application/enqueue-extraction-job.use-case';
+import { FindDuplicateTranscriptUseCase } from '../application/find-duplicate-transcript.use-case';
 import { GetConsultationAnalyticsUseCase } from '../application/get-consultation-analytics.use-case';
 import { GetConsultationRunUseCase } from '../application/get-consultation-run.use-case';
 import { GetExtractionResultUseCase } from '../application/get-extraction-result.use-case';
 import { GetRecordingUseCase } from '../application/get-recording.use-case';
 import { GetTranscriptUseCase } from '../application/get-transcript.use-case';
 import { ListConsultationRunsUseCase } from '../application/list-consultation-runs.use-case';
+import { ListRecordingChunksUseCase } from '../application/list-recording-chunks.use-case';
 import { ListRecordingJobsUseCase } from '../application/list-recording-jobs.use-case';
 import { RelabelTranscriptSpeakersUseCase } from '../application/relabel-transcript-speakers.use-case';
 import { RequestChunkReadUseCase } from '../application/request-chunk-read.use-case';
@@ -78,6 +83,9 @@ export class ClinicalAiController {
     private readonly listConsultationRuns: ListConsultationRunsUseCase,
     private readonly getConsultationRun: GetConsultationRunUseCase,
     private readonly getConsultationAnalytics: GetConsultationAnalyticsUseCase,
+    private readonly findDuplicateTranscriptUseCase: FindDuplicateTranscriptUseCase,
+    private readonly confirmChunkUploadUseCase: ConfirmChunkUploadUseCase,
+    private readonly listRecordingChunksUseCase: ListRecordingChunksUseCase,
   ) {}
 
   @Post()
@@ -111,6 +119,14 @@ export class ClinicalAiController {
     return this.updateRecordingAudioMetadata.execute(id, body);
   }
 
+  @Get(':id/duplicate-transcript')
+  async findDuplicateTranscript(
+    @Param('id') id: string,
+    @Query('audioHash') audioHash: string,
+  ): Promise<DuplicateTranscriptResponse> {
+    return this.findDuplicateTranscriptUseCase.execute(id, audioHash);
+  }
+
   @Post(':id/chunks')
   async requestChunk(
     @Param('id') id: string,
@@ -126,6 +142,19 @@ export class ClinicalAiController {
     @Param('sequence') sequence: string,
   ): Promise<RequestChunkReadResponse> {
     return this.requestChunkReadUseCase.execute(id, Number(sequence));
+  }
+
+  @Post(':id/chunks/:sequence/confirm')
+  async confirmChunkUpload(
+    @Param('id') id: string,
+    @Param('sequence') sequence: string,
+  ): Promise<void> {
+    return this.confirmChunkUploadUseCase.execute(id, Number(sequence));
+  }
+
+  @Get(':id/chunks')
+  async listRecordingChunks(@Param('id') id: string): Promise<RecordingChunk[]> {
+    return this.listRecordingChunksUseCase.execute(id);
   }
 
   @Post(':id/complete')

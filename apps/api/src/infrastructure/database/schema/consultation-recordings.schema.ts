@@ -37,6 +37,11 @@ export const consultationRecordings = pgTable('consultation_recordings', {
   channels: integer('channels'),
   codec: text('codec'),
   fileSizeBytes: bigint('file_size_bytes', { mode: 'number' }),
+  // sha256 of the stitched audio bytes, populated alongside the other
+  // ffprobe metadata (audit finding E4) — lets the worker detect and
+  // skip re-transcribing byte-identical audio instead of calling the
+  // LLM and billing for it twice. Nullable until stitched.
+  audioHash: text('audio_hash'),
   // Stays recording-scoped, not session-scoped, even though a session
   // can now span multiple recordings (pause/resume) — re-confirm on
   // every resume rather than once at session start (safer default).

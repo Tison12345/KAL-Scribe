@@ -1,0 +1,1 @@
+ALTER TABLE "consultation_ai_sessions" ADD COLUMN "facility_id" uuid;

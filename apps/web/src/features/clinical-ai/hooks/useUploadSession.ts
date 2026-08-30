@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioChunk } from "./useAudioRecorder";
 import {
   completeUpload,
+  confirmChunkUpload,
   requestChunkUpload,
   startRecording,
   uploadChunkBytes,
@@ -75,6 +76,14 @@ export function useUploadSession(chunks: AudioChunk[]): UseUploadSessionResult {
         sequence: chunk.sequence,
       });
       await uploadChunkBytes(target.uploadUrl, chunk.blob);
+      // Audit finding E2 — tell apps/api this chunk's bytes are
+      // actually confirmed in storage now, not just requested a URL
+      // for. Best-effort: the audio itself already safely uploaded by
+      // this point, so a failure here shouldn't make the doctor
+      // re-upload real bytes over a tracking call.
+      confirmChunkUpload(currentRecordingId, chunk.sequence).catch((err) => {
+        console.warn(`Failed to confirm chunk ${chunk.sequence} upload:`, err);
+      });
       setChunkUploads((prev) => {
         const next = new Map(prev);
         next.set(chunk.sequence, { sequence: chunk.sequence, status: "uploaded" });

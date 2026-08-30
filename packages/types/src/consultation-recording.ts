@@ -1,3 +1,5 @@
+import type { ConsultationTranscript } from "./consultation-transcript.js";
+
 /** Mirrors the `consultation_recordings` table (docs/adr/0014).
  * `deleted_at` is intentionally omitted from this API-facing type — it's
  * an internal soft-delete marker, not something callers need. */
@@ -47,6 +49,13 @@ export interface RequestChunkUploadRequest {
   sequence: number;
 }
 
+/** Audit finding E2 — one row per chunk the browser has confirmed
+ * actually finished uploading (see docs comment on the DB table). */
+export interface RecordingChunk {
+  sequence: number;
+  uploadedAt: string;
+}
+
 export type UploadTargetMethod = "PUT";
 
 export interface RequestChunkUploadResponse {
@@ -77,4 +86,16 @@ export interface UpdateRecordingAudioMetadataRequest {
   channels: number | null;
   codec: string | null;
   fileSizeBytes: number | null;
+  /** sha256 of the stitched audio bytes (audit finding E4). Optional/
+   * nullable so a provider that can't compute it doesn't have to. */
+  audioHash?: string | null;
+}
+
+/** Audit finding E4 — returned by the duplicate-audio check the worker
+ * runs before transcribing. `null` means no duplicate found. Carries
+ * the full transcript (not just an id) so the worker can copy it in
+ * one round trip rather than needing a second "get transcript by id"
+ * call that doesn't otherwise exist. */
+export interface DuplicateTranscriptResponse {
+  transcript: ConsultationTranscript | null;
 }

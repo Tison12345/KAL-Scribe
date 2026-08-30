@@ -22,6 +22,34 @@
       "when": 1787303934668,
       "tag": "0002_green_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788004141481,
+      "tag": "0003_last_warpath",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788005716807,
+      "tag": "0004_blue_rumiko_fujikawa",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788006143503,
+      "tag": "0005_rare_micromax",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788006559580,
+      "tag": "0006_lively_doctor_spectrum",
+      "breakpoints": true
     }
   ]
 }

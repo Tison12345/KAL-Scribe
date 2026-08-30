@@ -22,6 +22,7 @@ export class UpdateRecordingAudioMetadataUseCase {
       channels: request.channels,
       codec: request.codec,
       fileSizeBytes: request.fileSizeBytes,
+      audioHash: request.audioHash ?? null,
     });
   }
 }

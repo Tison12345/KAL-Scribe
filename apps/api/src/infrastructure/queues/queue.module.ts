@@ -6,6 +6,7 @@ import {
 } from '@kal-scribe/types';
 import type { ApiEnv } from '@kal-scribe/config';
 import { API_ENV, EnvModule } from '../env/env.module';
+import { logger } from '../logger';
 
 export const PG_BOSS = Symbol('PG_BOSS');
 
@@ -50,7 +51,7 @@ export const PG_BOSS = Symbol('PG_BOSS');
           max: 3,
         });
         boss.on('error', (error) => {
-          console.error('[pg-boss]', error);
+          logger.error({ err: error }, 'pg-boss internal error');
         });
         await boss.start();
 
