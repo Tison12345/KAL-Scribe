@@ -26,6 +26,18 @@ const apiEnvSchema = z.object({
    * finding: CORS was previously fully open with no restriction at
    * all). See main.ts. */
   WEB_APP_ORIGIN: z.string().min(1).optional(),
+  /** Testing-mode toggle (docs/adr/0018) — when true, this process also
+   * runs workers/clinical-ai-worker's job-processing loop in-process
+   * instead of it being a separately deployed/run service. Exists so a
+   * single-doctor test doesn't need anyone to run a worker by hand;
+   * NOT intended to stay on for a real multi-doctor deployment (see the
+   * ADR for why). Defaults to false — the normal, documented
+   * separate-worker architecture is unaffected unless this is
+   * explicitly set. */
+  EMBEDDED_WORKER: z
+    .string()
+    .optional()
+    .transform((value) => value === "true"),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

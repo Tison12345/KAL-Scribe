@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "description": "Separately-deployed pg-boss worker process for the clinical-ai job pipeline (architecture.md §5, §13, docs/adr/0015) — a stuck transcription job must never compete with apps/api's HTTP request latency.",
+  "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/main.ts",

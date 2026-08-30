@@ -45,6 +45,7 @@ deleted.
 - [`0015-pg-boss-not-bullmq.md`](adr/0015-pg-boss-not-bullmq.md) — replaced BullMQ/Redis with pg-boss (Postgres-native queue) after repeated Redis quota exhaustion
 - [`0016-multilingual-original-text-capture.md`](adr/0016-multilingual-original-text-capture.md) — Kannada/Hindi/Tamil/Malayalam/Sanskrit support: capture original-language text per segment (nullable, provider-dependent), scoped Noto Sans fonts
 - [`0017-remove-classic-whisperx-pipeline.md`](adr/0017-remove-classic-whisperx-pipeline.md) — removed the classic WhisperX+Pyannote pipeline (`python/asr-service`) entirely; Gemini is now the sole speech-understanding provider
+- [`0018-embedded-worker-testing-toggle.md`](adr/0018-embedded-worker-testing-toggle.md) — `EMBEDDED_WORKER` testing-only toggle: runs the worker in-process inside apps/api, no separate service needed
 - [`adr-template.md`](adr/adr-template.md) — shape to copy for a new ADR
 - [`README.md`](adr/README.md) — rules for this folder
 
@@ -86,6 +87,7 @@ to an old one.
 - [`2026-08-12-transcription-token-tracking.md`](log/2026-08-12-transcription-token-tracking.md) — transcription token usage now tracked (was silently discarded), matching extraction's existing pattern
 - [`2026-08-29-robustness-audit-fixes.md`](log/2026-08-29-robustness-audit-fixes.md) — first pass at production-readiness audit fixes: silent job-stall bug, PHI-in-logs, LLM call timeouts, `facility_id` column
 - [`2026-08-29-robustness-audit-fixes-part2.md`](log/2026-08-29-robustness-audit-fixes-part2.md) — second pass: CORS, connection pooling, extraction idempotency, transcription versioning, audio dedup, chunk tracking
+- [`2026-08-30-embedded-worker-testing-toggle.md`](log/2026-08-30-embedded-worker-testing-toggle.md) — `EMBEDDED_WORKER` toggle: runs the worker in-process inside apps/api for single-doctor testing with no separate service
 - [`_template.md`](log/_template.md) — shape to copy for a new log entry
 - [`README.md`](log/README.md) — rules for this folder
 

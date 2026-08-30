@@ -42,5 +42,20 @@ async function bootstrap() {
   });
 
   await app.listen(env.PORT);
+
+  // Testing-mode toggle (docs/adr/0018) — runs the worker's own
+  // job-processing loop inside this same process instead of it being a
+  // separate deployable, so a single-doctor test doesn't need anyone
+  // to run `workers/clinical-ai-worker` by hand. The worker only ever
+  // talks to apps/api over HTTP (docs/adr/0010), never the database
+  // directly — importing it here doesn't change that, it just means
+  // those HTTP calls now happen to land on this same process instead
+  // of a different one. `API_BASE_URL` is set to this process's own
+  // resolved port right before the import, rather than requiring a
+  // second env var to be kept in sync with `PORT` by hand.
+  if (env.EMBEDDED_WORKER) {
+    process.env.API_BASE_URL = `http://localhost:${env.PORT}`;
+    await import('@kal-scribe/clinical-ai-worker');
+  }
 }
 void bootstrap();

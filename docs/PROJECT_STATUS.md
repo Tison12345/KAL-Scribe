@@ -5,7 +5,29 @@
 > per-module detail, see `docs/modules/`. For why a decision was made, see
 > `docs/adr/`.
 
-**Last updated:** 2026-08-29 — `robustness/audit-fixes` branch (off
+**Last updated:** 2026-08-30 — `single-process-testing` branch (off
+`main`, which now includes everything from `robustness/audit-fixes`):
+added `EMBEDDED_WORKER` (docs/adr/0018), a testing-only toggle that
+makes `apps/api`'s own process also run `workers/clinical-ai-worker`'s
+job-processing loop in-process, so a non-technical tester can use only
+the deployed Vercel frontend — no separate worker process for anyone
+to run by hand, and no new Render service to pay for (the worker's
+code is unchanged; `apps/api` just imports it as a side effect when
+the flag is on). Defaults to `false` — the documented separate-worker
+architecture (docs/adr/0010) is unaffected unless explicitly enabled.
+**Verified locally**: started only `apps/api` with `EMBEDDED_WORKER=true`
+and the LLM keys set, confirmed both the HTTP server and the worker's
+queue listeners came up under the same process id, then ran a real
+recording through upload → chunk confirm → transcription (via the
+dedup-reuse path) → extraction end to end with no separate worker
+process running at any point — real clinical data came back correctly.
+**Not yet done**: adding `EMBEDDED_WORKER=true` + the LLM keys to the
+*deployed* Render environment (a manual dashboard step, not something
+done from this session) — until that's set, the deployed service still
+runs in its normal separate-worker-required mode.
+`docs/log/2026-08-30-embedded-worker-testing-toggle.md`.
+
+Previous entry: 2026-08-29 — `robustness/audit-fixes` branch (off
 `main`): fixed every finding from a full production-readiness audit
 (`docs/modules/kal-scribe-integration-readiness.md`, score 38/100)
 that didn't need a new decision or a legal sign-off first. Fixed: D5

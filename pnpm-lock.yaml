@@ -26,6 +26,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@kal-scribe/clinical-ai-worker':
+        specifier: workspace:*
+        version: link:../../workers/clinical-ai-worker
       '@kal-scribe/config':
         specifier: workspace:*
         version: link:../../packages/config
