@@ -11,6 +11,10 @@ const GROQ_CHAT_COMPLETIONS_URL =
   "https://api.groq.com/openai/v1/chat/completions";
 const TEMPERATURE = 0.2;
 
+/** No prior timeout existed on this call (audit finding E1) — a hung
+ * request held a worker concurrency slot indefinitely. */
+const REQUEST_TIMEOUT_MS = 120_000;
+
 interface GroqMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -119,19 +123,30 @@ export class GroqProvider implements ClinicalExtractionProvider {
       }
     | { success: false; error: string; raw: string }
   > {
-    const res = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages,
-        response_format: { type: "json_object" },
-        temperature: TEMPERATURE,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages,
+          response_format: { type: "json_object" },
+          temperature: TEMPERATURE,
+        }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new Error(
+          `Groq chat completions timed out after ${REQUEST_TIMEOUT_MS}ms.`,
+        );
+      }
+      throw error;
+    }
 
     if (!res.ok) {
       throw new Error(

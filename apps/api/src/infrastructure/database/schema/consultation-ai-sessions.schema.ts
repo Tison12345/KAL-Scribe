@@ -24,6 +24,15 @@ export const consultationAiSessions = pgTable('consultation_ai_sessions', {
   // beyond storing it (architecture.md §16).
   consultationSessionRef: text('consultation_session_ref').notNull(),
   doctorIdRef: text('doctor_id_ref').notNull(),
+  // Nullable, no FK yet (deliberately — this repo owns zero FKs into
+  // CMS tables, architecture.md §16). Every CMS table is scoped by
+  // facility_id; adding the column now, while unpopulated real data is
+  // still cheap to backfill, means the eventual RLS/multi-facility work
+  // is "add a policy," not "add a column, backfill it, then add a
+  // policy." Populate from whatever session/appointment context flows
+  // through once the CMS integration exists; leave null for a
+  // single-facility deployment until then.
+  facilityId: uuid('facility_id'),
   status: consultationAiSessionStatusEnum('status').notNull().default('active'),
   startedAt: timestamp('started_at', { withTimezone: true })
     .notNull()

@@ -26,7 +26,11 @@ async function postJson<TResponse>(
   if (!res.ok) {
     throw new Error(`${path} failed: ${res.status} ${await res.text()}`);
   }
-  return res.json() as Promise<TResponse>;
+  // Some endpoints (e.g. confirm-chunk-upload) return NestJS's empty
+  // 201 body, which res.json() can't parse ("Unexpected end of JSON
+  // input") — read as text first and only parse if non-empty.
+  const text = await res.text();
+  return (text.length > 0 ? JSON.parse(text) : undefined) as TResponse;
 }
 
 async function patchJson<TResponse>(
@@ -55,6 +59,16 @@ export function requestChunkUpload(
   request: RequestChunkUploadRequest,
 ): Promise<RequestChunkUploadResponse> {
   return postJson(`/clinical-ai/recordings/${recordingId}/chunks`, request);
+}
+
+/** Audit finding E2 — call once the chunk's signed-URL PUT has actually
+ * succeeded, not merely requested, so the server has a real record of
+ * which chunks are genuinely done rather than inferring it implicitly. */
+export function confirmChunkUpload(
+  recordingId: string,
+  sequence: number,
+): Promise<void> {
+  return postJson(`/clinical-ai/recordings/${recordingId}/chunks/${sequence}/confirm`);
 }
 
 export function completeUpload(

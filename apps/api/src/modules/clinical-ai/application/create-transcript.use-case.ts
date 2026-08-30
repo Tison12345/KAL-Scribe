@@ -26,6 +26,8 @@ export class CreateTranscriptUseCase {
       segments: labeledSegments,
       sttProvider: request.sttProvider,
       diarizationProvider: request.diarizationProvider,
+      model: request.model ?? null,
+      promptVersion: request.promptVersion ?? null,
       languageDetected: request.languageDetected,
       isMultilingual: request.isMultilingual ?? null,
       isCodeSwitched: request.isCodeSwitched ?? null,

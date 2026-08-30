@@ -15,6 +15,8 @@ export type {
   CompleteUploadRequest,
   CompleteUploadResponse,
   UpdateRecordingAudioMetadataRequest,
+  DuplicateTranscriptResponse,
+  RecordingChunk,
 } from "./consultation-recording.js";
 
 export type {

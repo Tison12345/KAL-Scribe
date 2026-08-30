@@ -5,3 +5,4 @@ export * from './consultation-transcripts.schema';
 export * from './consultation-ai-runs.schema';
 export * from './consultation-reviews.schema';
 export * from './consultation-ai-audit-log.schema';
+export * from './consultation-recording-chunks.schema';

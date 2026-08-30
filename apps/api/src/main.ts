@@ -7,12 +7,19 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { Logger } from 'nestjs-pino';
 import type { ApiEnv } from '@kal-scribe/config';
 import { AppModule } from './app.module';
 import { API_ENV } from './infrastructure/env/env.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // bufferLogs: true holds NestJS's own bootstrap-time log lines until
+  // useLogger below swaps in the real (pino) logger, instead of losing
+  // them to the default console logger first.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
+  app.useLogger(app.get(Logger));
 
   // Express's default JSON body limit (100kb) is fine for most of this
   // API's routes, but a long consultation's transcript — segments plus
@@ -22,12 +29,18 @@ async function bootstrap() {
   // real headroom, while still bounding request size sanely.
   app.useBodyParser('json', { limit: '10mb' });
 
-  // TODO before production: restrict to the real apps/web origin(s) —
-  // permissive for local dev only, since apps/web and apps/api run on
-  // different localhost ports.
-  app.enableCors();
-
   const env = app.get<ApiEnv>(API_ENV);
+
+  // Audit finding: this used to be app.enableCors() with no options at
+  // all — any origin could call this API from a browser. WEB_APP_ORIGIN
+  // must be set for any real deployment; unset falls back to permissive
+  // localhost-only (any port, since apps/web's dev port isn't fixed).
+  app.enableCors({
+    origin: env.WEB_APP_ORIGIN
+      ? env.WEB_APP_ORIGIN.split(',').map((origin) => origin.trim())
+      : /^http:\/\/localhost:\d+$/,
+  });
+
   await app.listen(env.PORT);
 }
 void bootstrap();

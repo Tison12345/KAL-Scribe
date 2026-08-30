@@ -30,6 +30,8 @@ export class RelabelTranscriptSpeakersUseCase {
       segments: updated.segments as TranscriptSegment[],
       sttProvider: updated.sttProvider,
       diarizationProvider: updated.diarizationProvider,
+      model: updated.model,
+      promptVersion: updated.promptVersion,
       languageDetected: updated.languageDetected,
       isMultilingual: updated.isMultilingual,
       isCodeSwitched: updated.isCodeSwitched,

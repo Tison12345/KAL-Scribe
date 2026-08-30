@@ -1,15 +1,20 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type {
+  ConsultationAiJob,
   ConsultationTranscript,
   CreateExtractionResultRequest,
   CreateExtractionResultResponse,
   CreateTranscriptRequest,
   CreateTranscriptResponse,
+  DuplicateTranscriptResponse,
   UpdateRecordingAudioMetadataRequest,
 } from "@kal-scribe/types";
+import type { Logger } from "./logger";
 
 /**
  * Everything workers/clinical-ai-worker calls over HTTP to apps/api
@@ -195,7 +200,10 @@ interface FfprobeOutput {
  * later, never load-bearing for the pipeline itself. Returns all-null
  * on any ffprobe failure rather than throwing — a recording still
  * needs to get transcribed even if this side metadata can't be read. */
-export async function getAudioMetadata(filePath: string): Promise<{
+export async function getAudioMetadata(
+  filePath: string,
+  log: Logger,
+): Promise<{
   sampleRateHz: number | null;
   channels: number | null;
   codec: string | null;
@@ -235,11 +243,7 @@ export async function getAudioMetadata(filePath: string): Promise<{
       codec: stream?.codec_name ?? null,
     };
   } catch (error) {
-    console.error(
-      `[clinical-ai-worker] ffprobe failed for ${filePath}, continuing without audio metadata: ${
-        error instanceof Error ? error.message : "unknown error"
-      }`,
-    );
+    log.warn({ err: error, filePath }, "ffprobe failed, continuing without audio metadata");
     return { sampleRateHz: null, channels: null, codec: null };
   }
 }
@@ -256,6 +260,34 @@ export function updateRecordingAudioMetadata(
     `/clinical-ai/recordings/${recordingId}/audio-metadata`,
     request,
   );
+}
+
+/** sha256 of the stitched audio file, streamed rather than loaded whole
+ * (audit finding E4) — the file is already on disk for ffprobe/upload
+ * either way, so this is a second pass over it, not a second copy in
+ * memory. */
+export function computeAudioHash(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
+/** Audit finding E4 — asks apps/api whether another recording already
+ * has a transcript for this exact audio content, before spending a
+ * Gemini call re-transcribing it. */
+export function findDuplicateTranscript(
+  apiBaseUrl: string,
+  recordingId: string,
+  audioHash: string,
+): Promise<DuplicateTranscriptResponse> {
+  return getJson<DuplicateTranscriptResponse>(
+    apiBaseUrl,
+    `/clinical-ai/recordings/${recordingId}/duplicate-transcript?audioHash=${encodeURIComponent(audioHash)}`,
+  ).then((response) => response ?? { transcript: null });
 }
 
 // ---------------------------------------------------------------------------
@@ -281,6 +313,22 @@ export function getTranscript(
   recordingId: string,
 ): Promise<ConsultationTranscript | null> {
   return getJson(apiBaseUrl, `/clinical-ai/recordings/${recordingId}/transcript`);
+}
+
+/** Used by the transcription job's idempotency guard to tell "extraction
+ * was already enqueued for this retry" apart from "the transcript exists
+ * but extraction was never enqueued" (audit finding D5) — the two look
+ * identical if you only check for a transcript. Never returns null; an
+ * empty array means no jobs yet. */
+export async function listRecordingJobs(
+  apiBaseUrl: string,
+  recordingId: string,
+): Promise<ConsultationAiJob[]> {
+  const jobs = await getJson<ConsultationAiJob[]>(
+    apiBaseUrl,
+    `/clinical-ai/recordings/${recordingId}/jobs`,
+  );
+  return jobs ?? [];
 }
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,11 @@ export interface ConsultationTranscript {
   segments: TranscriptSegment[];
   sttProvider: string;
   diarizationProvider: string | null;
+  /** Audit finding E8 — nullable: null for transcripts persisted before
+   * this field existed, or from a future provider that doesn't report
+   * it. */
+  model: string | null;
+  promptVersion: string | null;
   languageDetected: string[] | null;
   isMultilingual: boolean | null;
   isCodeSwitched: boolean | null;
@@ -21,6 +26,8 @@ export interface CreateTranscriptRequest {
   segments: TranscriptSegment[];
   sttProvider: string;
   diarizationProvider: string | null;
+  model?: string | null;
+  promptVersion?: string | null;
   languageDetected: string[] | null;
   isMultilingual?: boolean | null;
   isCodeSwitched?: boolean | null;

@@ -55,6 +55,14 @@ export interface SpeechUnderstandingRequest {
 }
 
 export interface SpeechUnderstandingMetadata {
+  /** Audit finding E8 — transcription previously had no model/prompt
+   * tracking at all, unlike extraction's `model`/`promptVersion`
+   * (ClinicalExtractionMetadata below). Always known (the provider
+   * knows its own model and prompt version unconditionally), unlike
+   * the token/latency fields which depend on what the response
+   * reports. */
+  model: string;
+  promptVersion: string;
   latencyMs: number;
   isMultilingual: boolean;
   /** Only meaningfully reportable by a model that understands the

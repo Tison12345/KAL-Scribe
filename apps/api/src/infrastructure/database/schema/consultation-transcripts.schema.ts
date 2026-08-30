@@ -23,6 +23,11 @@ export const consultationTranscripts = pgTable('consultation_transcripts', {
   segments: jsonb('segments').notNull(),
   sttProvider: text('stt_provider').notNull(),
   diarizationProvider: text('diarization_provider'),
+  // Audit finding E8 — the extraction stage tracks model/promptVersion
+  // per run (consultation_ai_runs) but transcription never did.
+  // Nullable: null for rows persisted before this column existed.
+  model: text('model'),
+  promptVersion: text('prompt_version'),
   languageDetected: text('language_detected').array(),
   // Language metadata (docs/adr/0014).
   isMultilingual: boolean('is_multilingual'),

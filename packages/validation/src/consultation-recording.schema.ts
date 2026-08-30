@@ -21,4 +21,5 @@ export const updateRecordingAudioMetadataSchema = z.object({
   channels: z.number().int().positive().nullable(),
   codec: z.string().min(1).nullable(),
   fileSizeBytes: z.number().int().nonnegative().nullable(),
+  audioHash: z.string().min(1).nullable().optional(),
 });

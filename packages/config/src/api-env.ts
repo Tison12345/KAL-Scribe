@@ -18,6 +18,14 @@ const apiEnvSchema = z.object({
   SUPABASE_URL: z.string().min(1),
   SUPABASE_SECRET_KEY: z.string().min(1),
   SUPABASE_STORAGE_BUCKET: z.string().min(1),
+  /** Comma-separated allowed CORS origins (e.g.
+   * "https://kal-scribe-web.vercel.app,https://staging.example.com").
+   * Optional — unset falls back to permissive localhost-only CORS
+   * (any port, since apps/web's dev port isn't fixed), which is fine
+   * for local dev but must be set for any real deployment (audit
+   * finding: CORS was previously fully open with no restriction at
+   * all). See main.ts. */
+  WEB_APP_ORIGIN: z.string().min(1).optional(),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

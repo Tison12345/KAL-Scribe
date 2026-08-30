@@ -84,6 +84,8 @@ to an old one.
 - [`2026-07-25-api-dist-main-rootdir-bug.md`](log/2026-07-25-api-dist-main-rootdir-bug.md) — fixed `apps/api`'s `node dist/main.js` crash on Render: `drizzle.config.ts` outside `src/` pushed TypeScript's inferred `rootDir` up, nesting output under `dist/src/`
 - [`2026-08-09-remove-classic-whisperx-pipeline.md`](log/2026-08-09-remove-classic-whisperx-pipeline.md) — removed the classic WhisperX+Pyannote pipeline (`python/asr-service`) entirely ahead of review; Gemini is now the sole speech-understanding provider
 - [`2026-08-12-transcription-token-tracking.md`](log/2026-08-12-transcription-token-tracking.md) — transcription token usage now tracked (was silently discarded), matching extraction's existing pattern
+- [`2026-08-29-robustness-audit-fixes.md`](log/2026-08-29-robustness-audit-fixes.md) — first pass at production-readiness audit fixes: silent job-stall bug, PHI-in-logs, LLM call timeouts, `facility_id` column
+- [`2026-08-29-robustness-audit-fixes-part2.md`](log/2026-08-29-robustness-audit-fixes-part2.md) — second pass: CORS, connection pooling, extraction idempotency, transcription versioning, audio dedup, chunk tracking
 - [`_template.md`](log/_template.md) — shape to copy for a new log entry
 - [`README.md`](log/README.md) — rules for this folder
 
@@ -94,6 +96,7 @@ to its current shape, see the log entries above instead.
 
 - [`clinical-ai-pipeline.md`](modules/clinical-ai-pipeline.md) — detailed, current-state technical walkthrough: tech stack, chunking mechanics, upload, worker stitching, transcription, LLM extraction, review/accept — the accurate replacement for architecture.md §3/§7/§8/§9's pre-build design
 - [`clinical-extraction-schema.md`](modules/clinical-extraction-schema.md) — the `ClinicalExtraction` schema's field-by-field derivation from the real CMS form
+- [`kal-scribe-integration-readiness.md`](modules/kal-scribe-integration-readiness.md) — robustness fixes + CMS integration-readiness plan (canonical copy lives on the CMS side, see the file's own header)
 - [`_template.md`](modules/_template.md) — shape to copy for a new module doc
 - [`README.md`](modules/README.md) — rules for this folder
 

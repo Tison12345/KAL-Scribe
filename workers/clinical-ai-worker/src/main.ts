@@ -14,15 +14,19 @@ import {
 } from "@kal-scribe/llm-client";
 import { readFile } from "node:fs/promises";
 import {
+  computeAudioHash,
   createTranscript,
   enqueueExtractionJob,
   fetchAndStitchRecordingAudio,
+  findDuplicateTranscript,
   getAudioMetadata,
   getTranscript,
+  listRecordingJobs,
   persistExtractionResult,
   updateJobStatus,
   updateRecordingAudioMetadata,
 } from "./internal-api-client";
+import { logger, withJobContext, type Logger } from "./logger";
 
 const env = parseWorkerEnv();
 
@@ -34,33 +38,50 @@ const env = parseWorkerEnv();
 // consumer and needs pg-boss's maintenance loops active.
 // Explicit max, not pg-boss's own pg.Pool default of 10 — Supabase's
 // Session pooler caps total concurrent clients at 15, shared across
-// this pool, its own LISTEN/NOTIFY connection, and apps/api's two
-// pools (docs/adr/0015).
-const boss = new PgBoss({ connectionString: env.DATABASE_URL, max: 4 });
-boss.on("error", (error) => {
-  console.error("[clinical-ai-worker:pg-boss]", error);
+// this pool and apps/api's two pools (docs/adr/0015). `useListenNotify:
+// false` (audit finding E5) trades near-instant job pickup for one
+// fewer held connection — this process was the only one of the three
+// pools still holding an extra un-disabled LISTEN/NOTIFY connection on
+// top of its own `max`, leaving the shared 15-connection budget
+// uncomfortably tight (~12-13/15 used by one clean instance). Job
+// pickup now happens on pg-boss's normal poll interval instead of
+// instantly, which is an acceptable trade for this workload (audio
+// processing jobs, not latency-sensitive request/response).
+const boss = new PgBoss({
+  connectionString: env.DATABASE_URL,
+  max: 4,
+  useListenNotify: false,
 });
+boss.on("error", (error) => {
+  logger.error({ err: error }, "pg-boss internal error");
+});
+
+type JobPayload = { jobId: string; recordingId: string };
 
 /** Wraps a job handler with status reporting (docs/adr/0015) —
  * `active` before, `completed` after, `failed` + re-throw on error so
  * pg-boss's own retry/backoff/dead-letter routing still applies. This
  * replaces the old BullMQ `QueueEvents` listener that used to do this
- * from apps/api's side by watching Redis pub/sub. */
-function withStatusReporting<TPayload extends { jobId: string }>(
+ * from apps/api's side by watching Redis pub/sub. Also the one place a
+ * per-job logger gets created (`withJobContext`) — every log line for
+ * this job, in this handler and everything it calls, carries the same
+ * `jobId`/`recordingId`/`jobType` fields from here on. */
+function withStatusReporting<TPayload extends JobPayload>(
   label: string,
-  handler: (payload: TPayload) => Promise<void>,
+  handler: (payload: TPayload, log: Logger) => Promise<void>,
 ): (jobs: Job<TPayload>[]) => Promise<void> {
   return async (jobs) => {
     const [job] = jobs;
     if (!job) return;
+    const log = withJobContext(job.data.jobId, job.data.recordingId, label);
 
     await updateJobStatus(env.API_BASE_URL, job.data.jobId, "active");
     try {
-      await handler(job.data);
+      await handler(job.data, log);
       await updateJobStatus(env.API_BASE_URL, job.data.jobId, "completed");
     } catch (error) {
+      log.error({ err: error }, `${label} job failed`);
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`[clinical-ai-worker] ${label} job ${job.data.jobId} failed: ${message}`);
       await updateJobStatus(env.API_BASE_URL, job.data.jobId, "failed", message);
       throw error;
     }
@@ -71,15 +92,14 @@ function withStatusReporting<TPayload extends { jobId: string }>(
  * `consultation_ai_jobs.status = 'dead_letter'` once pg-boss has
  * exhausted retries and routed the job here (docs/adr/0015). No actual
  * work happens — the original job already ran out of attempts. */
-function deadLetterHandler<TPayload extends { jobId: string }>(
+function deadLetterHandler<TPayload extends JobPayload>(
   label: string,
 ): (jobs: Job<TPayload>[]) => Promise<void> {
   return async (jobs) => {
     const [job] = jobs;
     if (!job) return;
-    console.error(
-      `[clinical-ai-worker] ${label} job ${job.data.jobId} exhausted retries, dead-lettering`,
-    );
+    const log = withJobContext(job.data.jobId, job.data.recordingId, label);
+    log.error(`${label} job exhausted retries, dead-lettering`);
     await updateJobStatus(env.API_BASE_URL, job.data.jobId, "dead_letter");
   };
 }
@@ -91,7 +111,10 @@ function deadLetterHandler<TPayload extends { jobId: string }>(
  * persists the resulting speaker-labeled transcript via apps/api, then
  * enqueues the extraction job (stage 7→8 hand-off).
  */
-async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<void> {
+async function processTranscriptionJob(
+  data: TranscriptionJobPayload,
+  log: Logger,
+): Promise<void> {
   const { recordingId } = data;
 
   // Idempotency guard (same reasoning as CompleteUploadUseCase): a
@@ -101,15 +124,32 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
   // extraction job already enqueued. Without this check, a retry
   // would re-transcribe and create a duplicate transcript + a
   // duplicate extraction job.
+  //
+  // A transcript existing is NOT on its own proof the whole job
+  // finished — if the worker died (or this HTTP call itself failed)
+  // between createTranscript succeeding and enqueueExtractionJob
+  // running, a naive "transcript exists -> return" here would report
+  // this retry as completed while silently never enqueueing
+  // extraction, stalling the pipeline with no failure signal (audit
+  // finding D5). So: check whether extraction was actually enqueued,
+  // and self-heal by enqueueing it now if not, instead of trusting
+  // the transcript's existence alone.
   const existingTranscript = await getTranscript(env.API_BASE_URL, recordingId);
   if (existingTranscript) {
-    console.log(
-      `[clinical-ai-worker] transcript already exists for recording ${recordingId}, skipping (retry of an already-completed job)`,
+    const jobs = await listRecordingJobs(env.API_BASE_URL, recordingId);
+    const extractionAlreadyEnqueued = jobs.some((job) => job.jobType === "extraction");
+    if (extractionAlreadyEnqueued) {
+      log.info("transcript and extraction job already exist, skipping (retry of an already-completed job)");
+      return;
+    }
+    log.warn(
+      "transcript exists but no extraction job was ever enqueued (worker likely died mid-handoff on a prior attempt) — enqueueing extraction now instead of re-transcribing",
     );
+    await enqueueExtractionJob(env.API_BASE_URL, recordingId, existingTranscript.id);
     return;
   }
 
-  console.log(`[clinical-ai-worker] fetching audio for recording ${recordingId}...`);
+  log.info("fetching audio");
   const { path: audioPath, cleanup } = await fetchAndStitchRecordingAudio(
     env.API_BASE_URL,
     recordingId,
@@ -117,17 +157,51 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
 
   try {
     const audio = await readFile(audioPath);
-    console.log(
-      `[clinical-ai-worker] transcribing recording ${recordingId} (${audio.length} bytes)...`,
-    );
+    log.info({ audioBytes: audio.length }, "transcribing");
 
     // Audio metadata (docs/adr/0014) — best-effort, informational only,
     // never blocks transcription if ffprobe itself fails.
-    const audioMetadata = await getAudioMetadata(audioPath);
+    const audioMetadata = await getAudioMetadata(audioPath, log);
+    const audioHash = await computeAudioHash(audioPath);
     await updateRecordingAudioMetadata(env.API_BASE_URL, recordingId, {
       ...audioMetadata,
       fileSizeBytes: audio.length,
+      audioHash,
     });
+
+    // Content-hash dedup (audit finding E4) — before spending a Gemini
+    // call, check whether another recording already has a transcript
+    // for this exact byte-identical audio (e.g. an accidental
+    // duplicate upload, or a retried recording session that re-sent
+    // the same chunks under a new recording id). If so, copy that
+    // transcript instead of re-transcribing and re-billing for the
+    // same audio.
+    const duplicate = await findDuplicateTranscript(env.API_BASE_URL, recordingId, audioHash);
+    if (duplicate.transcript) {
+      const existing = duplicate.transcript;
+      log.info(
+        { reusedTranscriptId: existing.id },
+        "byte-identical duplicate of an already-transcribed recording — reusing transcript instead of re-transcribing",
+      );
+      const { transcriptId } = await createTranscript(env.API_BASE_URL, recordingId, {
+        segments: existing.segments,
+        sttProvider: `dedup-reuse:${existing.sttProvider}`,
+        diarizationProvider: existing.diarizationProvider,
+        model: existing.model,
+        promptVersion: existing.promptVersion,
+        languageDetected: existing.languageDetected,
+        isMultilingual: existing.isMultilingual,
+        isCodeSwitched: existing.isCodeSwitched,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        rawResponse: { dedupReusedFromTranscriptId: existing.id },
+        transcriptionLatencyMs: 0,
+      });
+      await enqueueExtractionJob(env.API_BASE_URL, recordingId, transcriptId);
+      log.info("enqueued extraction job (dedup path)");
+      return;
+    }
 
     // Gemini is the sole speech-understanding provider (docs/adr/0017 —
     // the classic WhisperX+Pyannote path was removed entirely).
@@ -149,6 +223,8 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
     const transcriptSegments: TranscriptSegment[] = result.segments;
     const sttProvider: string = speechProvider.name;
     const diarizationProvider: string | null = speechProvider.name;
+    const model: string = result.metadata.model;
+    const promptVersion: string = result.metadata.promptVersion;
     const languageDetected: string[] = result.languageDetected;
     const isMultilingual: boolean | null = result.metadata.isMultilingual;
     const isCodeSwitched: boolean | null = result.metadata.isCodeSwitched;
@@ -158,17 +234,27 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
     const rawResponse: unknown = result.metadata.rawResponse;
     const transcriptionLatencyMs: number | null = result.metadata.latencyMs;
 
-    console.log(
-      `[clinical-ai-worker] transcript for recording ${recordingId}:\n` +
-        transcriptSegments
-          .map((segment) => `  [${segment.start}s-${segment.end}s] ${segment.speaker}: ${segment.text}`)
-          .join("\n"),
+    // Deliberately no transcript text (verbatim patient speech, PHI) in
+    // this log line — only shape/metadata, enough to debug without
+    // putting clinical content wherever these logs end up retained
+    // (audit finding D7). `logger.ts`'s redact config is a second,
+    // independent line of defense if a field shaped like this ever
+    // does carry text in the future.
+    const speakerCounts = transcriptSegments.reduce<Record<string, number>>((counts, segment) => {
+      counts[segment.speaker] = (counts[segment.speaker] ?? 0) + 1;
+      return counts;
+    }, {});
+    log.info(
+      { segmentCount: transcriptSegments.length, speakerCounts, languageDetected },
+      "transcribed",
     );
 
     const { transcriptId } = await createTranscript(env.API_BASE_URL, recordingId, {
       segments: transcriptSegments,
       sttProvider,
       diarizationProvider,
+      model,
+      promptVersion,
       languageDetected: languageDetected.length > 0 ? languageDetected : null,
       isMultilingual,
       isCodeSwitched,
@@ -178,10 +264,10 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
       rawResponse,
       transcriptionLatencyMs,
     });
-    console.log(`[clinical-ai-worker] persisted transcript ${transcriptId} for recording ${recordingId}`);
+    log.info({ transcriptId }, "persisted transcript");
 
     await enqueueExtractionJob(env.API_BASE_URL, recordingId, transcriptId);
-    console.log(`[clinical-ai-worker] enqueued extraction job for recording ${recordingId}`);
+    log.info("enqueued extraction job");
   } finally {
     await cleanup();
   }
@@ -196,14 +282,38 @@ async function processTranscriptionJob(data: TranscriptionJobPayload): Promise<v
  * specific vendor rather than the deployment default), and persists
  * the resulting run + review via apps/api.
  */
-async function processExtractionJob(data: ExtractionJobPayload): Promise<void> {
-  const { recordingId, transcriptId, requestedProvider } = data;
+async function processExtractionJob(
+  data: ExtractionJobPayload,
+  log: Logger,
+): Promise<void> {
+  const { recordingId, transcriptId, requestedProvider, jobId } = data;
+
+  // Idempotency guard (audit finding E3) — unlike transcription,
+  // extraction previously had no dedupe at all: a pg-boss retry of a
+  // job that had actually already succeeded (e.g. this job's own HTTP
+  // call to apps/api throwing on an unexpected response shape after
+  // the run was already persisted) would silently create an extra,
+  // billable "run" indistinguishable from an intentional Run 2. This
+  // distinguishes "retry of this same job" (same jobId, safe to skip)
+  // from "a genuinely new extraction request" (a different jobId,
+  // created by its own POST /enqueue-extraction call) by checking
+  // *this job's own* recorded status rather than whether any run
+  // exists for the recording at all — runs are deliberately
+  // multi-valued by design (docs/adr/0014), so that broader check
+  // would incorrectly block real re-runs.
+  const jobs = await listRecordingJobs(env.API_BASE_URL, recordingId);
+  const thisJob = jobs.find((job) => job.id === jobId);
+  if (thisJob?.status === "completed") {
+    log.info("extraction job already completed, skipping (retry of an already-completed job)");
+    return;
+  }
+
   const transcript = await getTranscript(env.API_BASE_URL, recordingId);
   if (!transcript) {
     throw new Error(`No transcript found for recording ${recordingId}.`);
   }
 
-  console.log(`[clinical-ai-worker] extracting clinical data for recording ${recordingId}...`);
+  log.info("extracting clinical data");
   const provider = loadClinicalExtractionProvider(
     {
       EXTRACTION_PROVIDER: env.EXTRACTION_PROVIDER,
@@ -239,9 +349,7 @@ async function processExtractionJob(data: ExtractionJobPayload): Promise<void> {
     hadValidationRetry: metadata.hadValidationRetry,
     rawResponse: metadata.rawResponse,
   });
-  console.log(
-    `[clinical-ai-worker] persisted extraction run ${runId} for recording ${recordingId} (provider=${provider.name})`,
-  );
+  log.info({ runId, provider: provider.name }, "persisted extraction run");
 }
 
 async function main(): Promise<void> {
@@ -281,15 +389,17 @@ async function main(): Promise<void> {
     deadLetterHandler("extraction"),
   );
 
-  console.log(
-    `[clinical-ai-worker] listening on "${CLINICAL_AI_QUEUE_NAMES.transcription}" ` +
-      `(concurrency=${env.TRANSCRIPTION_WORKER_CONCURRENCY}) and "${CLINICAL_AI_QUEUE_NAMES.extraction}" ` +
-      `(concurrency=${env.EXTRACTION_WORKER_CONCURRENCY})`,
+  logger.info(
+    {
+      transcriptionConcurrency: env.TRANSCRIPTION_WORKER_CONCURRENCY,
+      extractionConcurrency: env.EXTRACTION_WORKER_CONCURRENCY,
+    },
+    `listening on "${CLINICAL_AI_QUEUE_NAMES.transcription}" and "${CLINICAL_AI_QUEUE_NAMES.extraction}"`,
   );
 }
 
 main().catch((error) => {
-  console.error("[clinical-ai-worker] fatal startup error:", error);
+  logger.fatal({ err: error }, "fatal startup error");
   process.exit(1);
 });
 

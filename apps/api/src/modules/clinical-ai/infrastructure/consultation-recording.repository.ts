@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq, ne } from 'drizzle-orm';
 import { DATABASE } from '../../../infrastructure/database/database.module';
 import type { DrizzleDb } from '../../../infrastructure/database/client';
 import {
@@ -40,6 +40,27 @@ export class ConsultationRecordingRepository {
       .from(consultationRecordings)
       .where(eq(consultationRecordings.sessionId, sessionId));
     return row?.value ?? 0;
+  }
+
+  /** Audit finding E4 — candidates for audio-content dedup: every other
+   * recording sharing this exact audio hash, oldest first (so a match
+   * always points back to the *original*, never a later duplicate of a
+   * duplicate). Excludes `excludeRecordingId` (the recording asking the
+   * question) so it never matches itself. */
+  async findByAudioHash(
+    audioHash: string,
+    excludeRecordingId: string,
+  ): Promise<ConsultationRecordingRow[]> {
+    return this.db
+      .select()
+      .from(consultationRecordings)
+      .where(
+        and(
+          eq(consultationRecordings.audioHash, audioHash),
+          ne(consultationRecordings.id, excludeRecordingId),
+        ),
+      )
+      .orderBy(consultationRecordings.createdAt);
   }
 
   async update(

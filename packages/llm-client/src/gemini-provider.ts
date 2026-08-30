@@ -14,6 +14,12 @@ import type {
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const TEMPERATURE = 0.2;
 
+/** No prior timeout existed on this call at all (audit finding E1) — a
+ * hung request held a worker concurrency slot indefinitely. 120s covers
+ * a real transcription call on a long recording with room to spare;
+ * revisit if a genuinely long audio file starts tripping this. */
+const REQUEST_TIMEOUT_MS = 120_000;
+
 /** `inline_data` requests are capped at 20MB total (Gemini API audio
  * docs) — comfortably covers a typical 20-45 min consultation at the
  * opus bitrates MediaRecorder produces, but not arbitrarily long
@@ -150,6 +156,8 @@ export class GeminiProvider
       segments,
       languageDetected: result.data.languageDetected,
       metadata: {
+        model: this.model,
+        promptVersion: TRANSCRIPTION_PROMPT_VERSION,
         latencyMs: Date.now() - t0,
         isMultilingual: result.data.languageDetected.length > 1,
         isCodeSwitched: result.data.codeSwitched,
@@ -297,22 +305,35 @@ export class GeminiProvider
     contents: GeminiContent[],
     responseSchema?: unknown,
   ): Promise<GeminiCallResult> {
-    const res = await fetch(
-      `${GEMINI_API_BASE}/models/${this.model}:generateContent?key=${this.apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          contents,
-          generationConfig: {
-            responseMimeType: "application/json",
-            ...(responseSchema ? { responseSchema } : {}),
-            temperature: TEMPERATURE,
-          },
-        }),
-      },
-    );
+    let res: Response;
+    try {
+      res = await fetch(
+        `${GEMINI_API_BASE}/models/${this.model}:generateContent?key=${this.apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            contents,
+            generationConfig: {
+              responseMimeType: "application/json",
+              ...(responseSchema ? { responseSchema } : {}),
+              temperature: TEMPERATURE,
+            },
+          }),
+          // Audit finding E1 — without this, a hung Gemini request held a
+          // worker concurrency slot indefinitely (no prior timeout at all).
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      );
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new Error(
+          `Gemini generateContent timed out after ${REQUEST_TIMEOUT_MS}ms.`,
+        );
+      }
+      throw error;
+    }
 
     if (!res.ok) {
       throw new Error(
@@ -339,6 +360,12 @@ export class GeminiProvider
 // ---------------------------------------------------------------------
 // Transcription prompt + response schema
 // ---------------------------------------------------------------------
+
+/** Bumped manually whenever TRANSCRIPTION_SYSTEM_INSTRUCTION's wording
+ * changes — same reasoning as EXTRACTION_PROMPT_VERSION (prompt.ts),
+ * persisted per transcript so a prompt change has a measurable
+ * before/after (audit finding E8 — this didn't exist before). */
+const TRANSCRIPTION_PROMPT_VERSION = "1.0";
 
 const TRANSCRIPTION_SYSTEM_INSTRUCTION = `You are transcribing and diarizing a single audio recording of one doctor-patient consultation at an Ayurvedic clinic.
 
